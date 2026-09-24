@@ -10,9 +10,9 @@ used a prebuilt RadxaOS kernel, while this one builds its own kernel from
 layer and the kernel do not.
 
 > **Status: work in progress — no release yet.**
-> The system boots to the LineageOS UI with working display, GPU, Ethernet, Wi-Fi and
-> Bluetooth. Persistent `/data` and audio are still open. The first image will be
-> published on the [Releases](../../releases) page once those are done.
+> The system boots to the LineageOS UI with working display, GPU, Ethernet, Wi-Fi,
+> Bluetooth and persistent `/data`. Audio is the main remaining gap. The first image
+> will be published on the [Releases](../../releases) page once it is done.
 > See [docs/STATUS.md](docs/STATUS.md) for the current state in detail.
 
 ## Device specifications
@@ -37,11 +37,11 @@ Each item below was verified on hardware, not inferred from logs alone.
 - **Ethernet** — Gigabit, RTL8168h (`r8169`)
 - **Wi-Fi** — AIC8800D80 on USB, connected to a 5 GHz network
 - **Bluetooth** — pairing and OBEX file transfer, using the kernel's generic `btusb`
+- **Persistent `/data`** — 231 GB ext4 partition, verified across a reboot
 - **adb** — over TCP
 
 ## What does not work yet
 
-- **Persistent `/data`** — in progress; see [docs/STATUS.md](docs/STATUS.md)
 - **Audio** — not ported yet (it works in the Android 13 port; four fixes are documented there)
 - **NVMe** — driver is in the image, untested on this branch
 - **Hardware video codecs**

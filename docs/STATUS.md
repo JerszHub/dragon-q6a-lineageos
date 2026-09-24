@@ -12,7 +12,7 @@ Last updated: 2026-09-24.
 | Ethernet | works | RTL8168h via `r8169`, adb over TCP |
 | Wi-Fi | works | AIC8800D80 on USB, associated with a 5 GHz network |
 | Bluetooth | works | paired with a phone, photo transferred over OBEX |
-| Persistent `/data` | **in progress** | see below |
+| Persistent `/data` | works | 231 GB ext4 on `mmcblk1p3`, marker file survived a reboot |
 | Audio | not started | works in the Android 13 port; needs porting |
 | NVMe | untested | `nvme.ko` is in the image |
 | HW video codecs | not started | |
@@ -23,7 +23,14 @@ Last updated: 2026-09-24.
 Note that `Trebuchet` does not exist in LineageOS 24 — `Launcher3QuickStep` is the
 expected launcher there, its absence is not a defect.
 
-## Persistent `/data` — current state
+## Persistent `/data`
+
+Working since 2026-09-24. Card layout: partition 1 ESP (3 GB), partition 2 `metadata`
+(32 MB), partition 3 `userdata` (235.7 GB).
+
+Completing the setup wizard also persists now (`device_provisioned=1`,
+`user_setup_complete=1`); it used to reappear on every boot simply because `userdata`
+was a tmpfs and had nowhere to record that it had been completed.
 
 `androidboot.mount_userdata=std_parts` requires more than a `userdata` partition.
 In `vendor/mainline/services/generic_init/dynamic_mount_handler.cpp`:
