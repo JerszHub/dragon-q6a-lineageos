@@ -1,0 +1,18 @@
+diff --git a/ui/build/soong.go b/ui/build/soong.go
+index 4521b4abe..8217b9cf8 100644
+--- a/ui/build/soong.go
++++ b/ui/build/soong.go
+@@ -215,6 +215,13 @@ func (pb PrimaryBuilderFactory) primaryBuilderInvocation(config Config) bootstra
+ 
+ 	commonArgs = append(commonArgs, "-l", filepath.Join(pb.config.FileListDir(), "Android.bp.list"))
+ 	invocationEnv := make(map[string]string)
++	// Q6A: soong_build is invoked with `env -i`, so Go runtime knobs cannot be passed
++	// from the caller's environment. On memory-constrained hosts the analysis phase
++	// grows past available RAM and gets OOM-killed (observed: 25.3 GB RSS on a 26 GB
++	// machine). Setting GOMEMLIMIT makes the Go GC work harder instead of dying.
++	if v := os.Getenv("SOONG_BUILD_GOMEMLIMIT"); v != "" {
++		invocationEnv["GOMEMLIMIT"] = v
++	}
+ 	if pb.debugPort != "" {
+ 		//debug mode
+ 		commonArgs = append(commonArgs, "--delve_listen", pb.debugPort,

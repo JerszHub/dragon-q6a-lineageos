@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <project path="device/mainline/common" remote="github" name="LineageOS/android_device_mainline_common" />
+  <project path="external/tinyhal" remote="github" name="LineageOS/android_external_tinyhal" />
+  <project path="kernel/mainline/configs" remote="github" name="LineageOS/android_kernel_mainline_configs" />
+  <project path="prebuilts/bootmgr" remote="github" name="LineageOS/android_prebuilts_bootmgr" />
+  <project path="external/drm_hwcomposer-upstream" remote="github" name="LineageOS/android_external_drm_hwcomposer-upstream" />
+  <project path="external/minigbm-upstream" remote="github" name="LineageOS/android_external_minigbm-upstream" />
+  <project path="external/linux-firmware-mainline" remote="github" name="LineageOS/android_external_linux-firmware-mainline" />
+  <project path="hardware/mainline/common" remote="github" name="LineageOS/android_hardware_mainline_common" />
+  <project path="external/libdisplay-info-upstream" remote="github" name="LineageOS/android_external_libdisplay-info-upstream" />
+  <project path="prebuilts/mesa-build-dep" remote="github" name="LineageOS/android_prebuilts_mesa-build-dep" revision="lineage-24.0" />
+  <project path="vendor/mainline" remote="github" name="LineageOS/android_vendor_mainline" />
+  <!--
+    2026-09-20: zaleznosci z hardware/mainline/common/lineage.dependencies, ktorych
+    roomservice nigdy nie dociagnal. Ujawnily sie dopiero przy pelnym produkcie
+    lineage_Generic_arm64, ktory wlacza HAL audio mainline:
+      hardware/mainline/common/interfaces/audio/mainline/Android.bp:44
+      "android.hardware.audio.service-aidl.mainline" depends on undefined module "libasound"
+    Przy aosp_Generic_arm64 ten HAL nie byl budowany, wiec brak nie bolal.
+    Obie galezie lineage-24.0 sprawdzone i niepuste (533b21f7 / b695e875).
+  -->
+  <project path="external/alsa-lib" remote="github" name="LineageOS/android_external_alsa-lib" />
+  <project path="external/alsa-ucm-conf" remote="github" name="LineageOS/android_external_alsa-ucm-conf" />
+</manifest>

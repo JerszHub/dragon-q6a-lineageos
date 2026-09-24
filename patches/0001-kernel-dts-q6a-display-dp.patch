@@ -1,0 +1,154 @@
+diff --git a/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts b/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
+index bb5a42b038f1..e6f58bd932c9 100644
+--- a/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
++++ b/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
+@@ -111,6 +111,50 @@ usb2_3_connector: endpoint {
+ 		};
+ 	};
+ 
++	/*
++	 * The DisplayPort output of the SoC is routed to the HDMI type A
++	 * connector through an RA620 DP-to-HDMI level shifter.
++	 */
++	hdmi-bridge {
++		compatible = "radxa,ra620";
++
++		pinctrl-0 = <&dp_hot_plug_det>;
++		pinctrl-names = "default";
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++
++				hdmi_bridge_in: endpoint {
++					remote-endpoint = <&usb_dp_qmpphy_out>;
++				};
++			};
++
++			port@1 {
++				reg = <1>;
++
++				hdmi_bridge_out: endpoint {
++					remote-endpoint = <&hdmi_connector_in>;
++				};
++			};
++		};
++	};
++
++	hdmi-connector {
++		compatible = "hdmi-connector";
++		label = "hdmi";
++		type = "a";
++
++		port {
++			hdmi_connector_in: endpoint {
++				remote-endpoint = <&hdmi_bridge_out>;
++			};
++		};
++	};
++
+ 	leds {
+ 		compatible = "gpio-leds";
+ 
+@@ -521,6 +565,19 @@ &lpass_va_macro {
+ 	status = "okay";
+ };
+ 
++&mdss {
++	status = "okay";
++};
++
++&mdss_dp {
++	status = "okay";
++};
++
++&mdss_dp_out {
++	data-lanes = <0 1>;
++	link-frequencies = /bits/ 64 <1620000000 2700000000 5400000000 8100000000>;
++};
++
+ &pcie0 {
+ 	perst-gpios = <&tlmm 87 GPIO_ACTIVE_LOW>;
+ 	wake-gpios = <&tlmm 89 GPIO_ACTIVE_HIGH>;
+@@ -900,6 +957,12 @@ &tlmm {
+ 		/* GPIO_172 ~ GPIO_174 */
+ 		"", "", "";
+ 
++	dp_hot_plug_det: dp-hot-plug-det-state {
++		pins = "gpio47";
++		function = "dp_hot";
++		bias-disable;
++	};
++
+ 	pcie0_reset_n: pcie0-reset-n-state {
+ 		pins = "gpio87";
+ 		function = "gpio";
+@@ -959,6 +1022,54 @@ &uart5 {
+ 	status = "okay";
+ };
+ 
++&usb_1 {
++	dr_mode = "host";
++
++	status = "okay";
++};
++
++&usb_1_hsphy {
++	vdda-pll-supply = <&vreg_l10c_0p88>;
++	vdda33-supply = <&vreg_l2b_3p072>;
++	vdda18-supply = <&vreg_l1c_1p8>;
++
++	status = "okay";
++};
++
++&usb_1_qmpphy {
++	vdda-phy-supply = <&vreg_l6b_1p2>;
++	vdda-pll-supply = <&vreg_l1b_0p912>;
++
++	/*
++	 * Q6A has no USB-C receptacle: the QMP combo PHY output is hard-wired to a
++	 * DP bridge. kodiak.dtsi marks the PHY "orientation-switch", which makes
++	 * phy-qcom-qmp-combo.c:4896 take the Type-C branch and wait for an orientation
++	 * notification that never arrives here. The data-lanes parsing lives in the
++	 * else branch, so it never runs and the orientation stays at the probe default
++	 * (NORMAL) - driving DP on lanes {3,2} while this board wires them to {0,1}.
++	 * Result: AUX works and EDID reads fine, but main-link training never achieves
++	 * clock recovery and fails with "max v_level reached".
++	 *
++	 * Dropping the property lets the driver derive the orientation from data-lanes.
++	 * Verified on hardware 2026-09-19: link trains at HBR2 (5.4 Gbps, bw_code 20),
++	 * v_level 1, mode 1024x600@60. Before: RBR fallback, v_level 3, no mode.
++	 *
++	 * The lane wiring matches both known-good Android 13 device trees for this board.
++	 */
++	/delete-property/ orientation-switch;
++
++	status = "okay";
++
++	ports {
++		port@0 {
++			endpoint {
++				/* DP on lanes 0,1 => TYPEC_ORIENTATION_REVERSE */
++				data-lanes = <0 1>;
++			};
++		};
++	};
++};
++
+ &usb_2 {
+ 	dr_mode = "host";
+ 
+@@ -1020,6 +1131,10 @@ &usb_2_hsphy {
+ 	status = "okay";
+ };
+ 
++&usb_dp_qmpphy_out {
++	remote-endpoint = <&hdmi_bridge_in>;
++};
++
+ &venus {
+ 	status = "okay";
+ };

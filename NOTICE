@@ -1,0 +1,23 @@
+dragon-q6a-lineageos
+LineageOS 24 (Android 17) device tree, patches and tooling for the
+Radxa Dragon Q6A (Qualcomm QCS6490).
+
+Copyright 2026 the dragon-q6a-lineageos contributors.
+
+This repository's own contributions — the device tree under device/radxa/dragon_q6a,
+the files under device/mainline/generic, the scripts and the documentation — are
+licensed under the Apache License, Version 2.0; see LICENSE.
+
+Third-party components retain their own licences:
+
+- Patches under patches/ are derivative of the repositories they apply to and carry
+  those projects' licences (Apache 2.0 for AOSP and LineageOS components, GPL-2.0 for
+  the Linux kernel patch 0001).
+
+- device/radxa/dragon_q6a/firmware/aic8800/ contains binary firmware for the AICSemi
+  AIC8800D80 Wi-Fi/Bluetooth controller, redistributed from Radxa's package repository.
+  It is firmware executed by the device, not by the host, and is distributed unmodified.
+
+- device/radxa/dragon_q6a/kernel/modules/ contains kernel modules built from the
+  AICSemi aic8800 driver sources (GPL-2.0) against the kernel used by this port.
+  See scripts/build_aic8800.sh for how they are produced.

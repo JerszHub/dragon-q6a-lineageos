@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+# Q6A: laduje sterowniki AIC8800D80 (WiFi + Bluetooth) po zamontowaniu /vendor.
+# Szczegoly i uzasadnienie w q6a_load_wifi_bt.sh.
+
+on post-fs-data
+    start q6a_load_wifi_bt
+
+service q6a_load_wifi_bt /system/bin/sh /vendor/bin/q6a_load_wifi_bt.sh
+    class core
+    user root
+    group root
+    oneshot
+    disabled
+    seclabel u:r:su:s0

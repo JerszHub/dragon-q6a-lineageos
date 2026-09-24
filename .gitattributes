@@ -1,0 +1,11 @@
+# Prebuilt binaries are committed directly (each well below GitHub's 100 MB limit):
+#   device/radxa/dragon_q6a/kernel/modules/*.ko        (~16 MB total)
+#   device/radxa/dragon_q6a/firmware/aic8800/*.bin     (~2 MB total)
+# Ready-to-flash system images ship as Release assets, not in the tree.
+
+*.ko   binary
+*.bin  binary
+*.img  binary
+*.mbn  binary
+*.dtb  binary
+*.EFI  binary

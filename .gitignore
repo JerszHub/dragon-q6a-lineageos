@@ -1,0 +1,23 @@
+# Full system images — too large for git; they ship as Release assets.
+*.img
+*.img.zst
+*.img.xz
+
+# Build output
+out/
+*.o
+*.log
+
+# Backups left by our own scripts
+*.bak
+*.bak-*
+*.pre-*.bak
+*.disabled-q6a
+
+# Windows alternate-data-stream metadata
+*:Zone.Identifier
+*.Zone.Identifier
+
+# Editor / OS noise
+.DS_Store
+*.swp

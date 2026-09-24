@@ -1,0 +1,33 @@
+diff --git a/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java b/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
+index 2057bee0..fa4c57d5 100644
+--- a/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
++++ b/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
+@@ -298,9 +298,11 @@ public class LineageDatabaseHelper extends SQLiteOpenHelper{
+ 
+         if (upgradeVersion < 20) {
+             // Clear Settings.Global.UIDS_ALLOWED_ON_RESTRICTED_NETWORKS
++            // A17: the constant moved out of android.provider.Settings into
++            // ConnectivitySettingsManager, so reference the key by its literal value.
+             if (mUserHandle == UserHandle.USER_SYSTEM) {
+                 Settings.Global.putString(mContext.getContentResolver(),
+-                        Settings.Global.UIDS_ALLOWED_ON_RESTRICTED_NETWORKS, "");
++                        "uids_allowed_on_restricted_networks", "");
+             }
+             upgradeVersion = 20;
+         }
+@@ -310,12 +312,13 @@ public class LineageDatabaseHelper extends SQLiteOpenHelper{
+             SQLiteStatement stmt = null;
+             try {
+                 stmt = db.compileStatement("SELECT value FROM secure WHERE name=?");
+-                stmt.bindString(1, Settings.Secure.TETHERING_ALLOW_VPN_UPSTREAMS);
++                // A17: constant moved to ConnectivitySettingsManager; use the literal key.
++                stmt.bindString(1, "tethering_allow_vpn_upstreams");
+                 long value = stmt.simpleQueryForLong();
+ 
+                 if (value != 0) {
+                     Settings.Secure.putInt(mContext.getContentResolver(),
+-                            Settings.Secure.TETHERING_ALLOW_VPN_UPSTREAMS, (int) value);
++                            "tethering_allow_vpn_upstreams", (int) value);
+                 }
+             } catch (SQLiteDoneException ex) {
+                 // LineageSettings.Secure.TETHERING_ALLOW_VPN_UPSTREAMS is not set

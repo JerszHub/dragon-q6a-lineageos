@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+# LOCAL DEBUG AID for the Radxa Dragon Q6A bring up. NOT upstream material.
+#
+# The display is disabled on this board for now, so SurfaceFlinger fails and the
+# framework never reaches system_server. Without the framework nothing configures
+# the network, which also means adb over TCP is unreachable even though adbd runs
+# and service.adb.tcp.port is already set to 5555 by product.prop.
+#
+# docs/debugging.md describes doing this by hand from a serial console, but the
+# debug UART on this board is wired for receive only, so the commands have to be
+# baked in. Remove this file once the display works and the framework comes up.
+
+on property:sys.usb.ffs.ready=*
+    start q6a_debug_net
+
+on nonencrypted
+    start q6a_debug_net
+
+on property:init.svc.adbd=running
+    start q6a_debug_net
+
+service q6a_debug_net /system/bin/sh /vendor/bin/q6a_debug_net.sh
+    class core
+    user root
+    group root
+    # nie oneshot: skrypt pilnuje konfiguracji przez ~30 s
+    disabled
+    seclabel u:r:su:s0

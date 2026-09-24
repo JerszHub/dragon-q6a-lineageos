@@ -1,0 +1,56 @@
+diff --git a/protobuf_vendorcompat/Android.bp b/protobuf_vendorcompat/Android.bp
+deleted file mode 100644
+index dc9273e..0000000
+--- a/protobuf_vendorcompat/Android.bp
++++ /dev/null
+@@ -1,50 +0,0 @@
+-package {
+-    default_applicable_licenses: ["prebuilts_misc_protobuf_vendorcompat_license"],
+-}
+-
+-// See: http://go/android-license-faq
+-license {
+-    name: "prebuilts_misc_protobuf_vendorcompat_license",
+-    license_kinds: ["SPDX-license-identifier-BSD"],
+-    license_text: ["LICENSE"],
+-}
+-
+-cc_prebuilt_library_shared {
+-    name: "libprotobuf-cpp-full-21.12-vendorcompat",
+-    stem: "libprotobuf-cpp-full-21.12",
+-    vendor: true,
+-    target: {
+-        android_arm: {
+-            srcs: ["arm/libprotobuf-cpp-full-21.12.so"],
+-        },
+-    },
+-
+-    shared_libs: [
+-        "libc++",
+-        "libc",
+-        "libdl",
+-        "liblog",
+-        "libm",
+-        "libz",
+-    ],
+-}
+-
+-cc_prebuilt_library_shared {
+-    name: "libprotobuf-cpp-lite-21.12-vendorcompat",
+-    stem: "libprotobuf-cpp-lite-21.12",
+-    vendor: true,
+-    target: {
+-        android_arm: {
+-            srcs: ["arm/libprotobuf-cpp-lite-21.12.so"],
+-        },
+-    },
+-
+-    shared_libs: [
+-        "libc++",
+-        "libc",
+-        "libdl",
+-        "liblog",
+-        "libm",
+-        "libz",
+-    ],
+-}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!--
+    Device tree sciezki mainline dla Radxa Dragon Q6A (LineageOS 24 / Android 17).
+    Dodane recznie, bo roomservice.py w trybie depsonly szuka drzewa po nazwie repo
+    w local_manifests (regex android_device_.*_generic$), a lata na trzeci parametr
+    z docs/build.md NIE ISTNIEJE: gerrit 492595 zostal ABANDONED 2026-08-15.
+    Zaleznosci (device/mainline/common, tinyhal, kernel/mainline/configs, bootmgr,
+    mesa, drm_hwcomposer-upstream, minigbm-upstream, linux-firmware-mainline,
+    hardware/mainline/common) dociaga juz roomservice sam.
+  -->
+  <project path="device/mainline/generic" name="LineageOS/android_device_mainline_generic" />
+</manifest>
