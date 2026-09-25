@@ -57,6 +57,26 @@ mcopy -o -i "$SPEC" "$FW_SRC/a660_sqe.fw"  ::/Android/firmware/qcom/a660_sqe.fw
 mcopy -o -i "$SPEC" "$FW_SRC/a660_gmu.bin" ::/Android/firmware/qcom/a660_gmu.bin
 mcopy -o -i "$SPEC" "$FW_SRC/a660_zap.mbn" ::/Android/firmware/qcom/qcs6490/a660_zap.mbn
 
+# regulatory.db — DUZY ZYSK NA CZASIE BOOTU (zmierzone 2026-09-24: -27 s)
+# cfg80211.ko laduje sie w ~2,4 s, czyli ZANIM zamontowany zostanie /vendor. Szuka
+# regulatory.db pod firmware_class.path=/mnt/vendor/firmware/ i dostaje -2 (ENOENT),
+# mimo ze plik JEST w obrazie w /vendor/firmware/. Po nieudanym ladowaniu cfg80211
+# wysyla zdarzenia uevent na /devices/faux/regulatory CO 3,33 s bez konca.
+# Skutek: generic_init w drugim przebiegu ueventd wola Poll(..., 5s, true), czyli czeka
+# na 5 s CISZY - a cisza nigdy nie nastepuje. Warunek "until there's no new uevents"
+# (first_stage_init.cpp:641) jest nie do spelnienia, wiec petla wisi az do twardego
+# limitu 30 s z Gerrita #501523.
+# Pomiar: apexd-bootstrap 36,64 s -> 9,64 s, adbd 41,62 -> 14,50, bootanim 42,13 -> 15,03.
+REG_SRC=${LINEAGE_OUT:-${LINEAGE_TREE:-$HOME/q6a/lineage}/out/target/product/Generic_arm64}/vendor/firmware
+for f in regulatory.db regulatory.db.p7s; do
+  if [ -f "$REG_SRC/$f" ]; then
+    mcopy -o -i "$SPEC" "$REG_SRC/$f" ::/Android/firmware/$f
+    echo "    regulatory: $f"
+  else
+    echo "    UWAGA: brak $REG_SRC/$f - boot bedzie o ~27 s dluzszy"
+  fi
+done
+
 echo "==> przelaczam mount_firmware w a17-fix"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mtype -i "$SPEC" ::/loader/entries/a17-fix.conf > "$TMP/a17-fix.conf"
@@ -67,6 +87,7 @@ sync
 
 echo
 echo "=== weryfikacja ==="
+echo "-- firmware/ --";     mdir -i "$SPEC" ::/Android/firmware | grep -Ei "regulatory|bytes"
 echo "-- qcom/ --";          mdir -i "$SPEC" ::/Android/firmware/qcom | grep -E "a660|bytes"
 echo "-- qcom/qcs6490/ --";  mdir -i "$SPEC" ::/Android/firmware/qcom/qcs6490 | grep -E "a660|bytes"
 echo "-- wpis a17-fix --"

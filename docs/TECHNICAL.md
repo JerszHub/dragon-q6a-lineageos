@@ -66,6 +66,66 @@ erofs (device loop0): read error
 catch this. The fix is to pass the size explicitly with `-T`, computed from the partition
 table, and to assert afterwards that the filesystem is not larger than the partition.
 
+## Boot time
+
+Android's init did not start until 36 seconds into boot. The cause was a missing firmware
+file, and the chain is worth recording because nothing in it points at the real culprit.
+
+1. `cfg80211.ko` loads at 2.43 s — before `/vendor` is mounted.
+2. It looks for `regulatory.db` under `firmware_class.path=/mnt/vendor/firmware/` (the ESP)
+   and gets `-2` (ENOENT), even though the file *is* in the image, at
+   `/vendor/firmware/regulatory.db`:
+   `faux_driver regulatory: Direct firmware load for regulatory.db failed with error -2`
+3. Having failed, cfg80211 emits a uevent on `/devices/faux/regulatory` **every 3.33 s**,
+   indefinitely.
+4. `generic_init`'s second `ueventd` pass calls `Poll(callback, 5s, true)` — it waits for
+   **five seconds of silence**. With an event every 3.33 s that silence never comes, so
+   `Poll` never returns and the loop's exit condition,
+   `while (!CanQuitUeventd(true))`, is never evaluated. The intent is stated in
+   `first_stage_init.cpp:641`: *"Run ueventd with normal boot configuration, until there's
+   no new uevents"*.
+5. What finally breaks the deadlock is the unrelated 30-second cap added in Gerrit
+   [#501523](https://review.lineageos.org/c/501523) — `Deadline reached` at 35.81 s.
+
+Copying `regulatory.db` and `regulatory.db.p7s` into `::/Android/firmware/` on the ESP
+fixes it. `scripts/add_a17_firmware.sh` does this.
+
+| | before | after |
+|---|---|---|
+| `apexd-bootstrap` | 36.64 s | 9.64 s |
+| `adbd` | 41.62 s | 14.50 s |
+| `bootanim` | 42.13 s | 15.03 s |
+| ueventd exit | 35.81 s (deadline) | 9.01 s (naturally) |
+| `faux/regulatory` uevents | dozens | 0 |
+
+This is also an upstream problem in its own right, with no Gerrit report: the
+"until there's no new uevents" condition cannot be satisfied on any board with a periodic
+uevent source faster than the 5 s poll timeout, which makes #501523's 30-second cap a
+fixed boot cost for everyone. The readiness check inside the poll callback is guarded by
+`first_run &&` (`ueventd.cpp:179`), so on the second pass it never runs at all.
+
+### Do not remove `console=tty0`
+
+It looks like an obvious saving and it is the opposite. With **no** `console=` argument at
+all, the kernel enables every console that registers — including the UART:
+
+```
+with console=tty0:  [0.000282] printk: legacy console [tty0] enabled
+without:            [0.000282] printk: legacy console [tty0] enabled
+                    [0.163816] printk: legacy console [ttyMSM0] enabled
+```
+
+The serial console on this board is blocking and runs at roughly 11 KB/s, and the log is
+about 6100 lines. Removing the argument does not disable logging — it moves it from the
+framebuffer to the UART. Measured, three runs each: 9.64 / 9.69 / 9.81 s with
+`console=tty0` against 52.93 / 53.80 s without. The divergence starts inside the kernel:
+`Freeing unused kernel memory` at 0.20 s versus 4.29 s.
+
+To actually reduce console output, keep `console=tty0` and add `quiet loglevel=3`. Measured,
+that is worth about a quarter of a second — `apexd-bootstrap` 9.43 s against 9.64–9.81 s.
+The framebuffer console is cheap; the expense was the UART. It is worth having on a release
+image for the clean screen rather than for the time.
+
 ## Wi-Fi and Bluetooth (AIC8800D80)
 
 The chip sits on USB and enumerates in two stages: `a69c:8d80` in ROM mode, then
@@ -92,3 +152,11 @@ Only two of the three modules are loaded: `aic_load_fw` and `aic8800_fdrv`.
   logging produced a board that neither booted nor could be observed.
 - **Compare against a manifest, not against the source.** Sources get rebuilt; a manifest
   of what was written to the card is what detects media corruption.
+- **Measure before assuming.** The boot was suspected of being slowed by logging. Logging
+  was not the cause; timing the gaps in `dmesg` pointed somewhere else entirely, and the
+  one change that looked like an obvious saving made things five times worse.
+- **When generating a boot entry, touch only the `options` line.** `sed 's/$/ .../'`
+  appends to *every* line, including `linux`, `initrd` and `devicetree`, which produces an
+  entry that systemd-boot cannot load. With `timeout 0` and no keyboard, that means the
+  card has to come out. Verify the generated file before rebooting: the three path lines
+  must still have exactly two fields each.
