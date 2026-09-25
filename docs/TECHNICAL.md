@@ -160,3 +160,58 @@ Only two of the three modules are loaded: `aic_load_fw` and `aic8800_fdrv`.
   entry that systemd-boot cannot load. With `timeout 0` and no keyboard, that means the
   card has to come out. Verify the generated file before rebooting: the three path lines
   must still have exactly two fields each.
+
+## Audio bring-up
+
+The board came up with no sound card at all — `/proc/asound/cards` said
+`--- no soundcards ---`. Unlike the Android 13 port, everything else was already in
+place: the kernel builds the whole audio stack as modules, 314 of them ship in
+`vendor_dlkm`, and `remoteproc0`/`remoteproc1` exist.
+
+Two firmware files were missing, and **they go to different paths**, which is the part
+that is easy to get wrong:
+
+| File | Path under `firmware_class.path` | Why |
+|---|---|---|
+| `adsp.mbn` | `qcom/qcs6490/radxa/dragon-q6a/` | from the remoteproc node's `firmware-name` |
+| `QCS6490-Radxa-Dragon-Q6A-tplg.bin` | `qcom/qcs6490/` | named after the card's `model`, no subdirectory |
+
+Without the first, `remoteproc0` (named `adsp`) stays `offline`, so q6apm and GPR never
+come up. Without the second:
+
+```
+qcom-apm gprsvc:service:2:1: tplg firmware loading .../QCS6490-Radxa-Dragon-Q6A-tplg.bin failed -2
+snd-sc8280xp sound: ASoC: failed to instantiate card -2
+```
+
+With both staged on the ESP, the ADSP boots by itself at about 3.8 s and the card
+instantiates. `scripts/add_a17_firmware.sh` does this.
+
+Nothing else was needed on the userspace side: upstream `alsa-ucm-conf` already carries a
+profile for this exact board at
+`Qualcomm/qcs6490/QCS6490-Radxa-Dragon-Q6A/`, including a `BootSequence` that sets the
+headphone and ADC volumes. That is a marked improvement on the Android 13 port, where the
+missing `audio.dragon_q6a.xml` was the root cause of silence.
+
+### HDMI audio
+
+The mainline device tree declares only the two WCD links, so there is no DisplayPort
+backend. Adding one follows the pattern used by other Qualcomm boards:
+
+```dts
+displayport-dai-link {
+	link-name = "DisplayPort Playback";
+	codec    { sound-dai = <&mdss_dp>; };
+	cpu      { sound-dai = <&q6apmbedai DISPLAY_PORT_RX_0>; };
+	platform { sound-dai = <&q6apm>; };
+};
+```
+
+`mdss_dp` already has `#sound-dai-cells = <0>` in `kodiak.dtsi`, so no SoC-level change is
+needed. With this in place the card still instantiates, no ASoC errors appear, and
+`hdmi-audio-codec.1.auto` shows up as a component in `/sys/kernel/debug/asoc/`. Note that
+this is a *backend* link, so it adds no new PCM device — the frontends (`MultiMedia1`,
+`MultiMedia2`) route to it.
+
+Audio actually reaching an HDMI sink has **not** been verified; that needs routing
+configuration and hardware to listen on.

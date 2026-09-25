@@ -1,5 +1,5 @@
 diff --git a/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts b/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
-index bb5a42b038f1..e6f58bd932c9 100644
+index bb5a42b038f1..46b373bea9ea 100644
 --- a/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
 +++ b/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
 @@ -111,6 +111,50 @@ usb2_3_connector: endpoint {
@@ -73,7 +73,35 @@ index bb5a42b038f1..e6f58bd932c9 100644
  &pcie0 {
  	perst-gpios = <&tlmm 87 GPIO_ACTIVE_LOW>;
  	wake-gpios = <&tlmm 89 GPIO_ACTIVE_HIGH>;
-@@ -900,6 +957,12 @@ &tlmm {
+@@ -738,6 +795,27 @@ &sound {
+ 			"AMIC2", "MIC BIAS2",
+ 			"TX SWR_ADC1", "ADC2_OUTPUT";
+ 
++	/*
++	 * Audio over the HDMI connector. The DisplayPort controller registers
++	 * itself as an HDMI codec (#sound-dai-cells = <0> in kodiak.dtsi), and
++	 * DISPLAY_PORT_RX_0 is the LPASS backend port feeding it.
++	 */
++	displayport-dai-link {
++		link-name = "DisplayPort Playback";
++
++		codec {
++			sound-dai = <&mdss_dp>;
++		};
++
++		cpu {
++			sound-dai = <&q6apmbedai DISPLAY_PORT_RX_0>;
++		};
++
++		platform {
++			sound-dai = <&q6apm>;
++		};
++	};
++
+ 	wcd-playback-dai-link {
+ 		link-name = "WCD Playback";
+ 
+@@ -900,6 +978,12 @@ &tlmm {
  		/* GPIO_172 ~ GPIO_174 */
  		"", "", "";
  
@@ -86,7 +114,7 @@ index bb5a42b038f1..e6f58bd932c9 100644
  	pcie0_reset_n: pcie0-reset-n-state {
  		pins = "gpio87";
  		function = "gpio";
-@@ -959,6 +1022,54 @@ &uart5 {
+@@ -959,6 +1043,54 @@ &uart5 {
  	status = "okay";
  };
  
@@ -141,7 +169,7 @@ index bb5a42b038f1..e6f58bd932c9 100644
  &usb_2 {
  	dr_mode = "host";
  
-@@ -1020,6 +1131,10 @@ &usb_2_hsphy {
+@@ -1020,6 +1152,10 @@ &usb_2_hsphy {
  	status = "okay";
  };
  

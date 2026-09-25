@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-24.
+Last updated: 2026-09-25.
 
 ## Verified on hardware
 
@@ -13,7 +13,9 @@ Last updated: 2026-09-24.
 | Wi-Fi | works | AIC8800D80 on USB, associated with a 5 GHz network |
 | Bluetooth | works | paired with a phone, photo transferred over OBEX |
 | Persistent `/data` | works | 231 GB ext4 on `mmcblk1p3`, marker file survived a reboot |
-| Audio | not started | works in the Android 13 port; needs porting |
+| Audio, 3.5 mm jack | works | WCD9385 via ADSP; PCM `RUNNING`, S16_LE 48 kHz stereo, confirmed by listening |
+| Audio over HDMI | declared, unverified | `displayport-dai-link` in DT, `hdmi-audio-codec` registers, no routing yet |
+| Bluetooth audio | untested | A2DP profile active in the framework |
 | NVMe | untested | `nvme.ko` is in the image |
 | HW video codecs | not started | |
 | I²C / SPI | broken | board `qupv3fw.elf` missing |

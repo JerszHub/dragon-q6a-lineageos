@@ -9,10 +9,9 @@ used a prebuilt RadxaOS kernel, while this one builds its own kernel from
 `kernel/mainline/android-mainline`. All the hardware knowledge carries over; the Android
 layer and the kernel do not.
 
-> **Status: work in progress — no release yet.**
-> The system boots to the LineageOS UI with working display, GPU, Ethernet, Wi-Fi,
-> Bluetooth and persistent `/data`. Audio is the main remaining gap. The first image
-> will be published on the [Releases](../../releases) page once it is done.
+> **First release: `lineage24-v1`.** Display, GPU, Ethernet, Wi-Fi, Bluetooth,
+> persistent `/data` and analog audio all work. Images are on the
+> [Releases](../../releases) page.
 > See [docs/STATUS.md](docs/STATUS.md) for the current state in detail.
 
 ## Device specifications
@@ -37,12 +36,15 @@ Each item below was verified on hardware, not inferred from logs alone.
 - **Ethernet** — Gigabit, RTL8168h (`r8169`)
 - **Wi-Fi** — AIC8800D80 on USB, connected to a 5 GHz network
 - **Bluetooth** — pairing and OBEX file transfer, using the kernel's generic `btusb`
-- **Persistent `/data`** — 231 GB ext4 partition, verified across a reboot
+- **Persistent `/data`** — 231 GB ext4 partition, verified across a reboot and a power cycle
+- **Audio, 3.5 mm jack** — WCD9385 through the ADSP; confirmed by listening
 - **adb** — over TCP
 
 ## What does not work yet
 
-- **Audio** — not ported yet (it works in the Android 13 port; four fixes are documented there)
+- **Audio over HDMI** — the DisplayPort backend is declared and the `hdmi-audio-codec`
+  ASoC component registers, but routing is unconfigured and it is **not verified by listening**
+- **Bluetooth audio (A2DP)** — the profile is active in the framework, untested
 - **NVMe** — driver is in the image, untested on this branch
 - **Hardware video codecs**
 - **I²C / SPI** — the board's `qupv3fw.elf` is missing
