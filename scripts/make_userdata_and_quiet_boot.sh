@@ -58,11 +58,33 @@ echo "  userdata (part 3): $UD_START .. $UD_END  (~${UD_GB} GB)"
 EXIST=$(sgdisk -p "$TARGET" 2>/dev/null | awk '$1==2{print $1}')
 [ -n "$EXIST" ] && { echo "  WARNING: partition 2 ALREADY EXISTS — stopping, check by hand."; exit 1; }
 
-BASE=$(mtype -i "$SPEC" ::/loader/entries/a17-pdclk.conf 2>/dev/null | grep "^options" || true)
-[ -n "$BASE" ] || { echo "STOP: boot entry a17-pdclk.conf not found"; exit 1; }
+# Base entry: a17-pdclk exists ONLY on a development card (add_pdclk_entry.sh creates
+# it while debugging power domains). A release image carries a17, a17-udbg and
+# a17-quiet — and its a17 is ALREADY quiet and already has mount_userdata=std_parts.
+# Community report 2026-09-26: "a17-pdclk.conf not found" — the script assumed a
+# development artefact. Now: use a17-pdclk if present, otherwise a17; and if the
+# existing entry already qualifies, leave it alone and just create the partitions.
+BASE_NAME=""
+for cand in a17-pdclk a17; do
+  if mtype -i "$SPEC" "::/loader/entries/$cand.conf" >/dev/null 2>&1; then BASE_NAME="$cand"; break; fi
+done
+if [ -z "$BASE_NAME" ]; then
+  echo "STOP: neither a17-pdclk.conf nor a17.conf found on the medium."
+  echo "  Is this really a medium carrying a Dragon Q6A image?"
+  mdir -b -i "$SPEC" ::/loader/entries 2>/dev/null | sed 's#::/loader/entries/##; s/^/    /'
+  exit 1
+fi
+BASE=$(mtype -i "$SPEC" "::/loader/entries/$BASE_NAME.conf" 2>/dev/null | grep "^options" || true)
 NEW=$(echo "$BASE" \
-  | sed -E 's/ (console=ttyMSM0[^ ]*|earlycon|androidboot\.seriallogging=[^ ]*|ignore_loglevel|loglevel=[0-9]+|keep_bootcon|nokaslr|initcall_debug)//g' \
+  | sed -E 's/ (console=ttyMSM0[^ ]*|earlycon[^ ]*|androidboot\.seriallogging=[^ ]*|ignore_loglevel|loglevel=[0-9]+|keep_bootcon|nokaslr|initcall_debug)//g' \
   | sed -E 's/androidboot\.mount_userdata=[a-z_]+/androidboot.mount_userdata=std_parts/')
+SKIP_ENTRY=0
+if [ "$BASE_NAME" = a17 ] && [ "$NEW" = "$BASE" ]; then
+  SKIP_ENTRY=1
+  echo "  the a17 entry already qualifies (std_parts, no serial console) — leaving it alone"
+else
+  echo "  building the a17 entry from: $BASE_NAME"
+fi
 echo
 echo "=== new 'a17' entry (quiet) ==="
 echo "$NEW" | tr ' ' '\n' | grep -E "mount_userdata|console|ignore_unused|insecure_adb|seriallogging|earlycon" | sed 's/^/  /'
@@ -91,8 +113,10 @@ echo "  metadata partition: $(lsblk -dno SIZE $MD_DEV) ext4"
 echo "  userdata partition: $(lsblk -dno SIZE $UD_DEV) ext4 (no quota — see the comment)"
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-mtype -i "$SPEC" ::/loader/entries/a17-pdclk.conf | sed -e 's/^title .*/title      LineageOS 24 (Android 17)/' -e "s|^options .*|$NEW|" > "$TMP/a17.conf"
-mcopy -o -i "$SPEC" "$TMP/a17.conf" ::/loader/entries/a17.conf
+if [ "$SKIP_ENTRY" != 1 ]; then
+  mtype -i "$SPEC" "::/loader/entries/$BASE_NAME.conf" | sed -e 's/^title .*/title      LineageOS 24 (Android 17)/' -e "s|^options .*|$NEW|" > "$TMP/a17.conf"
+  mcopy -o -i "$SPEC" "$TMP/a17.conf" ::/loader/entries/a17.conf
+fi
 printf 'timeout 0\ndefault a17\n' > "$TMP/loader.conf"
 mcopy -o -i "$SPEC" "$TMP/loader.conf" ::/loader/loader.conf
 sync

@@ -134,6 +134,18 @@ The medium is found by what it *is* — a disk whose GPT has a partition named `
 size, removability or bus. There is no minimum or maximum size. If more than one medium
 matches, the script lists them and asks you to name one rather than guessing.
 
+### Which script do I need?
+
+`flash_a17.sh` is the whole job: it writes the image and creates `metadata` and `userdata`
+sized to the medium. If you are starting from a release image, that is all you need.
+
+`make_userdata_and_quiet_boot.sh` only adds the two partitions to a medium that has
+already been written. Use it when the card was written with `dd` rather than with
+`flash_a17.sh`. On a release image it leaves the boot entry alone, because the `a17` entry
+shipped there is already quiet and already uses `std_parts`; it only creates the
+partitions. (Before 2026-09-26 it insisted on an `a17-pdclk` entry, which exists only on a
+development card — a community member hit exactly that.)
+
 Other tooling:
 
 ```bash
