@@ -96,12 +96,19 @@ for f in regulatory.db regulatory.db.p7s; do
   fi
 done
 
-echo "==> przelaczam mount_firmware w a17-fix"
-TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-mtype -i "$SPEC" ::/loader/entries/a17-fix.conf > "$TMP/a17-fix.conf"
-sed -i 's/androidboot\.mount_firmware=disable/androidboot.mount_firmware=only_android_dir/' "$TMP/a17-fix.conf"
-grep -q "mount_firmware=only_android_dir" "$TMP/a17-fix.conf" || { echo "STOP: the mount_firmware substitution failed"; exit 1; }
-mcopy -o -i "$SPEC" "$TMP/a17-fix.conf" ::/loader/entries/a17-fix.conf
+# The a17-fix entry only exists on the first-boot bring-up image, where the command line
+# carried mount_firmware=disable. Release images ship a17/a17-udbg/a17-quiet, all of which
+# already use mount_firmware=only_android_dir, so there is nothing to patch. Skip quietly
+# instead of aborting after the firmware has already been staged. (2026-09-26 audit.)
+if mtype -i "$SPEC" ::/loader/entries/a17-fix.conf >/dev/null 2>&1; then
+  echo "==> switching mount_firmware in a17-fix"
+  mtype -i "$SPEC" ::/loader/entries/a17-fix.conf > "$TMP/a17-fix.conf"
+  sed -i 's/androidboot\.mount_firmware=disable/androidboot.mount_firmware=only_android_dir/' "$TMP/a17-fix.conf"
+  grep -q "mount_firmware=only_android_dir" "$TMP/a17-fix.conf" || { echo "STOP: the mount_firmware substitution failed"; exit 1; }
+  mcopy -o -i "$SPEC" "$TMP/a17-fix.conf" ::/loader/entries/a17-fix.conf
+else
+  echo "==> no a17-fix entry (release image) - nothing to patch"
+fi
 sync
 
 echo

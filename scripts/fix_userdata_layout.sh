@@ -26,6 +26,7 @@
 set -euo pipefail
 APPLY=0; TARGET=""
 for a in "$@"; do case "$a" in --apply) APPLY=1;; /dev/*) TARGET="$a";; *) echo "unknown argument: $a"; exit 1;; esac; done
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
 if [ -z "$TARGET" ]; then
   # Medium detection: shared library (no hardcoded size window).
   source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
@@ -56,14 +57,14 @@ sgdisk -d 3 "$TARGET" >/dev/null 2>&1 || true
 sgdisk -n "2:${MD_START}:${MD_END}" -t 2:8300 -c 2:"metadata" "$TARGET" >/dev/null
 sgdisk -n "3:${UD_START}:${UD_END}" -t 3:8300 -c 3:"userdata" "$TARGET" >/dev/null
 partprobe "$TARGET" 2>/dev/null || true; sleep 2
-for n in 2 3; do [ -b "${TARGET}${n}" ] || { echo "STOP: ${TARGET}${n} was not created"; exit 1; }; done
-mkfs.ext4 -q -L metadata -m 0 "${TARGET}2"
-mkfs.ext4 -q -L userdata -m 0 "${TARGET}3"
+for n in 2 3; do [ -b "$(q6a_part "$TARGET" $n)" ] || { echo "STOP: $(q6a_part "$TARGET" $n) was not created"; exit 1; }; done
+mkfs.ext4 -q -L metadata -m 0 "$(q6a_part "$TARGET" 2)"
+mkfs.ext4 -q -L userdata -m 0 "$(q6a_part "$TARGET" 3)"
 
 echo; echo "=== AFTER ==="
 sgdisk -p "$TARGET" | tail -4 | sed 's/^/  /'
 for n in 2 3; do
-  echo "  ${TARGET}${n}: $(lsblk -dno SIZE ${TARGET}${n})  $(blkid -s LABEL -o value ${TARGET}${n} 2>/dev/null)"
+  D=$(q6a_part "$TARGET" $n); echo "  $D: $(lsblk -dno SIZE $D)  $(blkid -s LABEL -o value $D 2>/dev/null)"
 done
 echo
 echo "DONE. Select the entry with: sudo set_default_entry.sh a17"

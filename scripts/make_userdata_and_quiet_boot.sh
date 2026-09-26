@@ -24,6 +24,7 @@
 set -euo pipefail
 APPLY=0; TARGET=""
 for a in "$@"; do case "$a" in --apply) APPLY=1;; /dev/*) TARGET="$a";; *) echo "unknown argument: $a"; exit 1;; esac; done
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
 if [ -z "$TARGET" ]; then
   # Medium detection: shared library (no hardcoded size window).
   source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
@@ -96,7 +97,7 @@ echo; echo "=== APPLYING ==="
 sgdisk -n "2:${MD_START}:${MD_END}" -t 2:8300 -c 2:"metadata" "$TARGET" >/dev/null
 sgdisk -n "3:${UD_START}:${UD_END}" -t 3:8300 -c 3:"userdata" "$TARGET" >/dev/null
 partprobe "$TARGET" 2>/dev/null || true; sleep 2
-MD_DEV="${TARGET}2"; UD_DEV="${TARGET}3"
+MD_DEV=$(q6a_part "$TARGET" 2); UD_DEV=$(q6a_part "$TARGET" 3)
 for d in "$MD_DEV" "$UD_DEV"; do [ -b "$d" ] || { echo "STOP: $d was not created"; exit 1; }; done
 mkfs.ext4 -q -L metadata -m 0 "$MD_DEV"
 # NOTE (2026-09-24): do NOT enable the ext4 "quota"/"project" features on /data.

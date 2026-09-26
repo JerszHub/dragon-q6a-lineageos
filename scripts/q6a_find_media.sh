@@ -61,3 +61,14 @@ q6a_find_media() {
   } >&2
   return 1
 }
+
+# q6a_part <device> <n>  -> prints the Nth partition's device node
+# /dev/sde -> /dev/sde2, but /dev/nvme0n1 -> /dev/nvme0n1p2 and /dev/mmcblk0 -> /dev/mmcblk0p2.
+# Appending the number directly is correct only for sd*/vd*/hd*. This was latent until
+# q6a_find_media started scanning nvme and mmcblk devices too (2026-09-26).
+q6a_part() {
+  case "$1" in
+    *nvme*|*mmcblk*|*loop*) echo "${1}p${2}" ;;
+    *)                      echo "${1}${2}"  ;;
+  esac
+}

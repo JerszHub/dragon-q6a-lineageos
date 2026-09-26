@@ -25,6 +25,7 @@ set -euo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 APPLY=0; TARGET=""
 for a in "$@"; do case "$a" in --apply) APPLY=1;; /dev/*) TARGET="$a";; *) echo "unknown argument: $a"; exit 1;; esac; done
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
 if [ -z "$TARGET" ]; then
   # Medium detection: shared library (no hardcoded size window).
   source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
@@ -34,7 +35,7 @@ fi
 
 echo "=== target: $TARGET ==="
 sgdisk -p "$TARGET" | tail -5 | sed 's/^/  /'
-UD="${TARGET}3"; MD="${TARGET}2"
+UD=$(q6a_part "$TARGET" 3); MD=$(q6a_part "$TARGET" 2)
 [ -b "$UD" ] || { echo "STOP: $UD not found"; exit 1; }
 N2=$(sgdisk -i 2 "$TARGET" | sed -n "s/^Partition name: *'\(.*\)'$/\1/p")
 N3=$(sgdisk -i 3 "$TARGET" | sed -n "s/^Partition name: *'\(.*\)'$/\1/p")
