@@ -1,0 +1,44 @@
+diff --git a/services/generic_init/dynamic_mount_helpers.cpp b/services/generic_init/dynamic_mount_helpers.cpp
+index d76a02d..214072b 100644
+--- a/services/generic_init/dynamic_mount_helpers.cpp
++++ b/services/generic_init/dynamic_mount_helpers.cpp
+@@ -207,6 +207,39 @@ bool MountPartitions(Fstab& fstab_) {
+             continue;
+         }
+ 
++        // Resolve symlinked mount points before handing the entry to fs_mgr.
++        //
++        // fs_mgr_create_canonical_mount_point() (fs_mgr.cpp) compares the mount point with
++        // its realpath and refuses to mount when they differ. On a system-as-root image
++        // /product and /system_ext are symlinks into /system, so a product.img or
++        // system_ext.img in the android dir can never be mounted — the failure reads
++        // "Failed to mount /product: Success", errno untouched, because mount() is never
++        // reached. generic_init advertises support for those images in
++        // android_system_partitions, so today that support cannot work at all.
++        //
++        // This has to happen HERE and not while the fstab is built: at build time the root
++        // is still the ramdisk, where /product does not exist, and weakly_canonical returns
++        // a non-existent path unchanged. By this point TrySwitchSystemAsRoot() has run and
++        // the symlink resolves. The safety check itself still runs, on the resolved path.
++        {
++            // The original value has to be kept: MountPartition() consumes a run of
++            // consecutive entries sharing one mount point (one per candidate fs_type), and
++            // all of them must be rewritten. Comparing against current->mount_point inside
++            // the loop would stop after the first entry, because that entry has just been
++            // changed.
++            const std::string original_mount_point = current->mount_point;
++            std::error_code ec;
++            auto resolved = std::filesystem::weakly_canonical(original_mount_point, ec);
++            if (!ec && !resolved.empty() && resolved.string() != original_mount_point) {
++                LOG(INFO) << "Mount point " << original_mount_point << " resolves to "
++                          << resolved.string();
++                for (auto it = current;
++                     it != fstab_.end() && it->mount_point == original_mount_point; ++it) {
++                    it->mount_point = resolved.string();
++                }
++            }
++        }
++
+         Fstab::iterator end;
+         if (!MountPartition(fstab_, current, false /* erase_same_mounts */, &end)) {
+             if (current->fs_mgr_flags.no_fail) {

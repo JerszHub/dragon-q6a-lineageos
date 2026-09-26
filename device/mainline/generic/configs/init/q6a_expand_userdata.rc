@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+# Q6A: grow userdata to fill the medium on first boot. See q6a_expand_userdata.sh.
+# Runs at post-fs-data, once /data is mounted and its block device is known.
+
+on post-fs-data
+    start q6a_expand_userdata
+
+service q6a_expand_userdata /system/bin/sh /vendor/bin/q6a_expand_userdata.sh
+    class core
+    user root
+    group root
+    oneshot
+    disabled
+    seclabel u:r:su:s0

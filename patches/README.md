@@ -11,6 +11,7 @@ from the root of the repository named below.
 | `0004-device-mainline-generic-q6a.patch` | `device/mainline/generic` | Board wiring: Mesa driver whitelist, Wi-Fi/BT kernel modules and firmware, the `usb.gadget` APEX guard, and the init service that loads the Wi-Fi/BT modules. |
 | `0005-prebuilts-misc-disable-protobuf-vendorcompat.patch` | `prebuilts/misc` | `libprotobuf-cpp-{full,lite}-21.12-vendorcompat` declare `srcs` only under `android_arm` (32-bit) and none for arm64, which breaks an arm64-only build. From AOSP, not LineageOS. |
 | `0006-soong-gomemlimit.patch` | `build/soong` | Lets `SOONG_BUILD_GOMEMLIMIT` reach `soong_build`, which is started with `env -i`. Only needed on memory-constrained hosts. |
+| `0007-generic_init-canonical-mount-point.patch` | `vendor/mainline` | fs_mgr refuses a mount point that is not canonical, and on a system-as-root image `/product` and `/system_ext` are symlinks into `/system` — so the `product` and `system_ext` images that `generic_init` claims to support can never mount. Resolving the path at mount time fixes it. No Gerrit report. |
 
 The untracked files that belong with patch 0004 are shipped as real files under
 `device/mainline/generic/` in this repository, not as a patch.

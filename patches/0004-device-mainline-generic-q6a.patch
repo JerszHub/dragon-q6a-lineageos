@@ -50,10 +50,10 @@ index 14e92ba..701ba9e 100644
 +    aic8800_fdrv.ko \
 +    aic_btusb.ko
 diff --git a/configs/init/Android.bp b/configs/init/Android.bp
-index 6fc8a81..f4c8c9f 100644
+index 6fc8a81..a7e73b0 100644
 --- a/configs/init/Android.bp
 +++ b/configs/init/Android.bp
-@@ -43,3 +43,19 @@ prebuilt_etc {
+@@ -43,3 +43,27 @@ prebuilt_etc {
      src: "ueventd.generic.rc",
      vendor: true,
  }
@@ -73,11 +73,19 @@ index 6fc8a81..f4c8c9f 100644
 +    sub_dir: "overlay-system_ext-etc-init",
 +    vendor: true,
 +}
++
++// Q6A: grow userdata to fill the medium on first boot.
++prebuilt_etc {
++    name: "q6a_expand_userdata.rc",
++    src: "q6a_expand_userdata.rc",
++    sub_dir: "overlay-system_ext-etc-init",
++    vendor: true,
++}
 diff --git a/configs/scripts/Android.bp b/configs/scripts/Android.bp
-index b02da95..44569bd 100644
+index b02da95..ee2356b 100644
 --- a/configs/scripts/Android.bp
 +++ b/configs/scripts/Android.bp
-@@ -14,3 +14,17 @@ prebuilt_bin {
+@@ -14,3 +14,24 @@ prebuilt_bin {
      src: "device_generic_settings.sh",
      vendor: true,
  }
@@ -95,8 +103,15 @@ index b02da95..44569bd 100644
 +    src: "q6a_load_wifi_bt.sh",
 +    vendor: true,
 +}
++
++// Q6A: grow userdata to fill the medium on first boot (Etcher-friendly small image).
++prebuilt_bin {
++    name: "q6a_expand_userdata.sh",
++    src: "q6a_expand_userdata.sh",
++    vendor: true,
++}
 diff --git a/device.mk b/device.mk
-index f65bfc7..a5a61f7 100644
+index f65bfc7..6e69dab 100644
 --- a/device.mk
 +++ b/device.mk
 @@ -41,7 +41,11 @@ PRODUCT_PACKAGES += \
@@ -112,7 +127,7 @@ index f65bfc7..a5a61f7 100644
  
  # Graphics allocator
  PRODUCT_PACKAGES += \
-@@ -184,9 +188,36 @@ PRODUCT_SOONG_NAMESPACES += \
+@@ -184,9 +188,38 @@ PRODUCT_SOONG_NAMESPACES += \
      $(DEVICE_PATH) \
      kernel/mainline/configs
  
@@ -134,7 +149,9 @@ index f65bfc7..a5a61f7 100644
 +# do not cover our prebuilts, and nothing on this device reads modules.load.
 +PRODUCT_PACKAGES += \
 +    q6a_load_wifi_bt.rc \
-+    q6a_load_wifi_bt.sh
++    q6a_load_wifi_bt.sh \
++    q6a_expand_userdata.rc \
++    q6a_expand_userdata.sh
 +
  # USB
 +# Q6A: ship the gadget stub ONLY when no real HAL has been selected.

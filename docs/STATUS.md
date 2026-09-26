@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-25.
+Last updated: 2026-09-26.
 
 ## Verified on hardware
 
@@ -12,7 +12,7 @@ Last updated: 2026-09-25.
 | Ethernet | works | RTL8168h via `r8169`, adb over TCP |
 | Wi-Fi | works | AIC8800D80 on USB, associated with a 5 GHz network |
 | Bluetooth | works | paired with a phone, photo transferred over OBEX |
-| Persistent `/data` | works | 231 GB ext4 on `mmcblk1p3`, marker file survived a reboot |
+| Persistent `/data` | works, self-sizing | 231 GB ext4 on `mmcblk1p3`, marker file survived a reboot |
 | Audio, 3.5 mm jack | works | WCD9385 via ADSP; PCM `RUNNING`, S16_LE 48 kHz stereo, confirmed by listening |
 | Audio over HDMI | declared, unverified | `displayport-dai-link` in DT, `hdmi-audio-codec` registers, no routing yet |
 | Bluetooth audio | untested | A2DP profile active in the framework |

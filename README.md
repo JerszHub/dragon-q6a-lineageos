@@ -9,8 +9,9 @@ used a prebuilt RadxaOS kernel, while this one builds its own kernel from
 `kernel/mainline/android-mainline`. All the hardware knowledge carries over; the Android
 layer and the kernel do not.
 
-> **First release: `lineage24-v1`.** Display, GPU, Ethernet, Wi-Fi, Bluetooth,
-> persistent `/data` and analog audio all work. Images are on the
+> **Latest release: `lineage24-v2`.** Write the image with Balena Etcher and boot — the
+> board sizes its own data partition on first run. Display, GPU, Ethernet, Wi-Fi,
+> Bluetooth, persistent `/data` and analog audio all work. Images are on the
 > [Releases](../../releases) page.
 > See [docs/STATUS.md](docs/STATUS.md) for the current state in detail.
 
@@ -85,6 +86,21 @@ the lane swap — EDID read correctly the whole time, so the panel looked perfec
 
 Side effect: the PHY ends up in `QMPPHY_MODE_DP_ONLY`, which costs USB3 SuperSpeed. The
 proper fix is a second endpoint with `data-lanes = <2 3>` for USB3; that is not done yet.
+
+## Installing
+
+1. Download `dragon_q6a_lineage24_v2.img.xz` from [Releases](../../releases)
+2. Write it with [Balena Etcher](https://etcher.balena.io/), which reads `.xz` directly,
+   or with `xz -d` and `dd`
+3. Put the card in the board and power on
+
+That is the whole procedure. **The board grows the data partition by itself on first
+boot**: it moves the backup GPT to the real end of the medium, resizes `userdata` to fill
+whatever card you used, reboots once, then extends the filesystem online. The image stays
+small so it downloads quickly; the space is claimed on the device.
+
+A `.img.zst` is published alongside for anyone who prefers faster decompression, but
+Etcher handles the `.xz` without any extra tooling.
 
 ## How big a card do I need?
 
