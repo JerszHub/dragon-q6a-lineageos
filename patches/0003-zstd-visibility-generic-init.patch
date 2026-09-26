@@ -1,19 +1,19 @@
 diff --git a/Android.bp b/Android.bp
-index 51f5d112f..40c2a7af1 100644
+index 51f5d112f..360ad69c9 100644
 --- a/Android.bp
 +++ b/Android.bp
 @@ -77,6 +77,15 @@ cc_library {
          "//external/elfutils:__subpackages__",
          "//external/libbpf:__subpackages__",
          "//external/mesa3d:__subpackages__",
-+        // Q6A 2026-09-20: vendor/mainline/services/generic_init ma libzstd w static_libs
-+        // (od b677507, "Copy android-17.0.0_r1 system/core/init/"), ale nikt nie dodal mu
-+        // tu widocznosci. Ujawnia sie przy lineage_Generic_arm64 po aktualizacji
++        // Q6A 2026-09-20: vendor/mainline/services/generic_init has libzstd in static_libs
++        // (since b677507, "Copy android-17.0.0_r1 system/core/init/"), but nothing ever
++        // granted it visibility here. It surfaces with lineage_Generic_arm64 after updating
 +        // vendor/mainline (30.08 -> 07.09): "libgeneric_init depends on //external/zstd:libzstd
-+        // which is not visible to this module". Gerrit 2026-09-20: brak zgloszenia.
-+        // SKLADNIA: build/soong/android/visibility.go:363 - pakiet spoza vendor/ NIE MOZE
-+        // wskazac konkretnego podpakietu w //vendor, wolno mu wylacznie
-+        // "//vendor:__subpackages__" (udokumentowane w build/soong/README.md:349).
++        // which is not visible to this module". Gerrit, 2026-09-20: no report filed.
++        // SYNTAX: build/soong/android/visibility.go:363 — a package outside vendor/ may
++        // NOT name a specific subpackage of //vendor; only "//vendor:__subpackages__" is
++        // allowed (documented in build/soong/README.md:349).
 +        "//vendor:__subpackages__",
          "//external/rsync:__subpackages__",
          "//external/squashfs-tools/squashfs-tools:__subpackages__",

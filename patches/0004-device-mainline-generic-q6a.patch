@@ -1,5 +1,5 @@
 diff --git a/Generic_arm64/BoardConfig.mk b/Generic_arm64/BoardConfig.mk
-index 14e92ba..16a5c8d 100644
+index 14e92ba..701ba9e 100644
 --- a/Generic_arm64/BoardConfig.mk
 +++ b/Generic_arm64/BoardConfig.mk
 @@ -50,3 +50,46 @@ TARGET_KERNEL_CONFIG_EXT := \
@@ -7,38 +7,38 @@ index 14e92ba..16a5c8d 100644
      $(DEVICE_PATH)/configs/kernel/customizations.config
  endif
 +
-+# Q6A 2026-09-20: BIALA LISTA zamiast czarnej. Plyta ma Adreno 643, wiec jedyny
++# Q6A 2026-09-20: a WHITELIST instead of a blacklist. The board has an Adreno 643, so the
 +# potrzebny sterownik to freedreno (gallium + Turnip w Vulkanie). Drzewo urzadzenia
 +# wlacza komplet sterownikow ARM i desktopowych, a kazdy dokladany po jednym do
 +# filtra kosztowal nas osobny nieudany build:
 +#
-+#   asahi, imagination  -> brak mapowania MESA_VK_LIB_SUFFIX_* w external/mesa
-+#                          (Android.mk zna tylko 8 nazw) -> dwa moduly "vulkan."
++#   asahi, imagination  -> no MESA_VK_LIB_SUFFIX_* mapping in external/mesa
++#                          (Android.mk knows only 8 names) -> two modules both named "vulkan."
 +#                          -> base_rules.mk:320 "already defined"
 +#                          Na Gerricie leza DWIE PORZUCONE zmiany dokladajace ta strone.
 +#   radeonsi, amd       -> podnosza wymaganie libdrm do 2.4.133 "for AMDGPU"
 +#                          (mesa e0b5724e85d), a external/libdrm ma 2.4.124
 +#                          -> meson.build:1921 "Invalid version"
-+#   etnaviv             -> wymaga modulu Pythona pycparser >= 2.20, ktorego nie ma
++#   etnaviv             -> needs the Python module pycparser >= 2.20, which is not present
 +#                          ani w systemie, ani w prebuilts/mesa-build-dep
 +#                          -> src/etnaviv/hwdb/meson.build:15
 +#
-+# Dlatego NIE dokladamy kolejnych filter-out, tylko przycinamy obie listy do freedreno.
-+# UWAGA na miejsce: ten plik wlacza rodzica w linii 7, a swoje += dodaje pozniej,
-+# wiec filtr w device/mainline/generic/BoardConfig.mk (ten od nouveau) wykonuje sie
-+# ZA WCZESNIE. Musi byc na koncu TEGO pliku.
++# So rather than adding more filter-out lines, both lists are cut down to freedreno.
++# MIND THE PLACEMENT: this file includes its parent at line 7 and appends afterwards,
++# so the filter in device/mainline/generic/BoardConfig.mk (the nouveau one) runs
++# TOO EARLY. It has to live at the end of THIS file.
 +BOARD_MESA3D_GALLIUM_DRIVERS := freedreno
 +BOARD_MESA3D_VULKAN_DRIVERS := freedreno
 +
 +# Q6A 2026-09-21: WiFi i Bluetooth — AIC8800D80 na USB (a69c:8d80, po firmware 8d81).
-+# Moduly zbudowane ZE ZRODEL (radxa-pkg/aic8800) pod nasze jadro: ~/q6a/build_aic8800.sh.
-+# Moduly z v7 byly prebuilt z RadxaOS (vermagic 6.18.2-4-qcom) i tu sie NIE zaladuja.
++# Modules built FROM SOURCE (radxa-pkg/aic8800) against our kernel; see build_aic8800.sh.
++# The v7 modules were RadxaOS prebuilts (vermagic 6.18.2-4-qcom) and will NOT load here.
 +#
-+# ⚠️ MIEJSCE: device/mainline/generic/BoardConfig.mk ustawia BOARD_VENDOR_KERNEL_MODULES_LOAD
-+# przez ":=" w linii 82, a nasz kernel/board.mk jest wlaczany WCZESNIEJ (linia 74) - wpis
-+# tam zostalby nadpisany. Ten plik wlacza rodzica w linii 7, wiec wykonuje sie po nim.
++# ⚠️ PLACEMENT: device/mainline/generic/BoardConfig.mk sets BOARD_VENDOR_KERNEL_MODULES_LOAD
++# with ":=" at line 82, and our kernel/board.mk is included EARLIER (line 74), so an entry
++# there would be overwritten. This file includes the parent at line 7, so it runs after it.
 +#
-+# ⚠️ KOLEJNOSC MA ZNACZENIE: aic_load_fw wgrywa firmware i przeenumerowuje uklad
++# ⚠️ ORDER MATTERS: aic_load_fw uploads the firmware and the chip re-enumerates
 +# (8d80 -> 8d81), dopiero potem aic8800_fdrv moze go obsluzyc.
 +DRAGON_Q6A_MODULES := device/radxa/dragon_q6a/kernel/modules
 +BOARD_VENDOR_KERNEL_MODULES += \
@@ -96,7 +96,7 @@ index b02da95..44569bd 100644
 +    vendor: true,
 +}
 diff --git a/device.mk b/device.mk
-index f65bfc7..44717d7 100644
+index f65bfc7..a5a61f7 100644
 --- a/device.mk
 +++ b/device.mk
 @@ -41,7 +41,11 @@ PRODUCT_PACKAGES += \
@@ -105,9 +105,9 @@ index f65bfc7..44717d7 100644
  TARGET_MESA_DO_NOT_SET_AS_DEFAULT := true
 -TARGET_MESA_ENABLE_SOFTWARE_RENDERER := true
 +# Q6A: WYLACZONE. W mesie 26.2.3 lavapipe (swrast) ma 241 MB niestrippowanych,
-+# a kopiowanie do LINKED/ daje plik zerowy -> llvm-strip "not a valid object file".
-+# Nie potrzebujemy go: Turnip (vulkan.freedreno) buduje sie poprawnie, a programowy
-+# fallback Vulkana jest w org.lineageos.device.graphics.vulkan.swiftshader.apex.
++# and copying it to LINKED/ produces a zero-length file -> llvm-strip "not a valid object file".
++# We do not need it: Turnip (vulkan.freedreno) builds fine, and the software Vulkan
++# fallback lives in org.lineageos.device.graphics.vulkan.swiftshader.apex.
 +TARGET_MESA_ENABLE_SOFTWARE_RENDERER := false
  
  # Graphics allocator
@@ -117,10 +117,10 @@ index f65bfc7..44717d7 100644
      kernel/mainline/configs
  
 +# Q6A 2026-09-21: firmware AIC8800D80 (WiFi + Bluetooth).
-+# Sterownik czyta pliki BEZPOSREDNIO przez filp_open (CONFIG_USE_FW_REQUEST=n),
-+# nie przez request_firmware - wiec firmware_class.path go NIE dotyczy.
-+# Przy CONFIG_PLATFORM_UBUNTU=n sciezka jest PLASKA: aic_default_fw_path + "/" + nazwa,
-+# bez podkatalogu na wariant ukladu (aicbluetooth.c:333, galaz #else).
++# The driver reads files DIRECTLY through filp_open (CONFIG_USE_FW_REQUEST=n),
++# not through request_firmware, so firmware_class.path does NOT apply to it.
++# With CONFIG_PLATFORM_UBUNTU=n the path is FLAT: aic_default_fw_path + "/" + name,
++# with no per-chip-variant subdirectory (aicbluetooth.c:333, the #else branch).
 +# aic_default_fw_path = "/vendor/etc/firmware" (aicbluetooth.c:149).
 +PRODUCT_COPY_FILES += $(foreach f,$(wildcard device/radxa/dragon_q6a/firmware/aic8800/*), \
 +    $(f):$(TARGET_COPY_OUT_VENDOR)/etc/firmware/$(notdir $(f)))
@@ -131,17 +131,17 @@ index f65bfc7..44717d7 100644
 +    q6a_debug_net.sh
 +
 +# Q6A: jawne ladowanie sterownikow WiFi/BT - aliasy w vendor_dlkm/modules.alias
-+# nie obejmuja naszych prebuiltow, a modules.load nikt na tym urzadzeniu nie czyta.
++# do not cover our prebuilts, and nothing on this device reads modules.load.
 +PRODUCT_PACKAGES += \
 +    q6a_load_wifi_bt.rc \
 +    q6a_load_wifi_bt.sh
 +
  # USB
-+# Q6A: zaslepke gadzetu wysylamy TYLKO gdy nie wybrano prawdziwego HAL-a.
-+# options.mk domyslnie ustawia TARGET_USB_GADGET_HAL=mainline, co wciaga
++# Q6A: ship the gadget stub ONLY when no real HAL has been selected.
++# options.mk defaults TARGET_USB_GADGET_HAL to mainline, which pulls in
 +# com.android.hardware.usb.gadget.mainline; wyslanie obu wklada do /vendor/apex
 +# dwa pakiety deklarujace ten sam modul "com.android.hardware.usb.gadget".
-+# apexd sie wtedy wywala, a apexd-bootstrap ma reboot_on_failure -> petla bootu.
++# apexd then aborts, and apexd-bootstrap has reboot_on_failure -> a boot loop.
 +ifneq ($(TARGET_USB_GADGET_HAL),mainline)
  PRODUCT_PACKAGES += \
      com.android.hardware.usb.gadget.none

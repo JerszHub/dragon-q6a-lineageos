@@ -1,19 +1,19 @@
 #!/bin/bash
 #
-# build_q6a_a17.sh — KANONICZNY skrypt budowania Androida 17 dla Dragon Q6A.
-# Uzycie: ./build_q6a_a17.sh [cel]      (domyslnie all_images)
+# build_q6a_a17.sh — THE canonical build script for Android 17 on the Dragon Q6A.
+# Usage: ./build_q6a_a17.sh [target]      (default: all_images)
 #
 # ⚠️⚠️ NAJWAZNIEJSZE: MAINLINE_GENERIC_KERNEL_BOARDCONFIG_MK
-# Nasz board.mk lezy w device/radxa/dragon_q6a/kernel/, czyli NIE na sciezce domyslnej
+# Our board.mk lives in device/radxa/dragon_q6a/kernel/, which is NOT the default path
 # (device/mainline/generic/Generic_arm64/kernels/<nazwa>/board.mk). device/mainline/generic/
-# BoardConfig.mk podpina go WYLACZNIE przez te zmienna; bez niej wchodzi galaz "else"
-# z golym gki_defconfig i CALY nasz fragment qcs6490.config jest POMIJANY.
+# BoardConfig.mk picks it up ONLY through this variable; without it the "else" branch
+# with a bare gki_defconfig is taken and our ENTIRE qcs6490.config fragment is SKIPPED.
 # Objawy takiego builda (sprawdzone 2026-09-12): ARM64_VA_BITS=39 zamiast 48,
 # ARM64_BTI_KERNEL=y, SHADOW_CALL_STACK=y, NLS_CODEPAGE_437=m zamiast y.
-# Takie jadro GINIE po ExitBootServices - dokladnie ta blokada co w sierpniu.
+# Such a kernel DIES after ExitBootServices — exactly the blocker we hit in August.
 #
-# ⚠️ NIE wywolywac "make" na jadrze recznie: oldconfig pyta interaktywnie o nowe symbole
-# (np. MEMFD_ASHMEM_SHIM) i przy EOF URYWA .config w polowie (stracone ~25 opcji).
+# ⚠️ Do NOT run "make" on the kernel by hand: oldconfig prompts interactively for new symbols
+# (e.g. MEMFD_ASHMEM_SHIM) and truncates .config at EOF (about 25 options lost).
 set -u
 cd ${LINEAGE_TREE:-$HOME/q6a/lineage} || exit 1
 
@@ -21,14 +21,14 @@ export MAINLINE_GENERIC_KERNEL_BOARDCONFIG_MK=device/radxa/dragon_q6a/kernel/boa
 
 source build/envsetup.sh > /dev/null 2>&1
 # 2026-09-20: PRZEJSCIE NA PELNY PRODUKT LineageOS.
-# aosp_Generic_arm64 dziedziczy tylko lineage_sdk_common.mk (samo SDK), przez co w obrazie
-# bylo AOSP-owe UI, domyslna animacja bootu AOSP i BRAK LineageSettingsProvider - a uslugi
-# z org.lineageos.platform bez niego zabijaly system_server.
+# aosp_Generic_arm64 inherits only lineage_sdk_common.mk (the SDK alone), so the image
+# had the AOSP UI, the default AOSP boot animation and NO LineageSettingsProvider — services
+# from org.lineageos.platform killed system_server without it.
 # lineage_Generic_arm64 dziedziczy vendor/lineage/config/common_full_tablet_wifionly.mk,
-# czyli pelny produkt: bootanimation Lineage, aplikacje, LineageSettingsProvider, Trebuchet.
+# that is the full product: Lineage boot animation, apps, LineageSettingsProvider.
 # Poprzedni wariant: build_q6a_a17.sh.bak-aosp-0920
 lunch lineage_Generic_arm64-cp2a-userdebug > /dev/null 2>&1
-export LINEAGE_BUILD=Generic_arm64          # BoardConfigLineage.mk wchodzi tylko gdy ustawione
+export LINEAGE_BUILD=Generic_arm64          # BoardConfigLineage.mk is only included when this is set
 export SOONG_INCREMENTAL_ANALYSIS=false
 export SOONG_BUILD_GOMEMLIMIT=20GiB         # nasza latka w build/soong/ui/build/soong.go
 TARGET_GOAL="${1:-all_images}"
@@ -41,9 +41,9 @@ LOG=${LINEAGE_TREE:-$HOME/q6a/lineage}/build_$(date +%m%d_%H%M).log
 } > "$LOG"
 echo "log: $LOG"
 
-# -j8 (2026-09-20). Historia: -j12 dawalo OOM-kill w kotlinc/r8, wiec zeszlismy na -j6.
+# -j8 (2026-09-20). History: -j12 caused OOM kills in kotlinc/r8, so we dropped to -j6.
 # Maszyna ma 16 rdzeni i 26 GB dla WSL (32 GB fizycznie). Faza analizy Soong potrafi
-# zjesc 21 GB, ale to JEDEN proces - ogranicza ja GOMEMLIMIT, nie -j. Dopiero ninja
+# reach 21 GB, but it is ONE process bounded by GOMEMLIMIT, not by -j. Only ninja
 # odpala rownolegle kompilatory, a te sa duzo lzejsze. -j8 to kompromis: +33% wzgledem
 # -j6, a nadal spory zapas na kotlinc/r8 w koncowej fazie budowania aplikacji.
 m "$TARGET_GOAL" -j8 >> "$LOG" 2>&1

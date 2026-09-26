@@ -1,18 +1,18 @@
 #!/bin/bash
 #
-# update_a17_sd.sh — aktualizuje obrazy A17 na ESP nosnika (karta lub plik .img).
+# update_a17_sd.sh — refreshes the Android 17 images on a medium's ESP (a card or a .img).
 #
-# DLACZEGO MANIFEST, A NIE PORONWANIE Z NOSNIKIEM (zmiana 2026-09-13):
-#   Poprzednia wersja dla KAZDEGO pliku najpierw odczytywala jego kopie z karty, zeby
-#   porownac sumy. Przy system.img to 991 MB odczytu PRZED zapisem i drugie tyle po nim
-#   - okolo 3 GB ruchu na jeden plik. Przy przekazywaniu USB przez usbipd to sie zemscilo:
-#   adapter zresetowal sie w polowie odczytu (dmesg: "urb->status -104",
+# WHY A MANIFEST RATHER THAN COMPARING AGAINST THE MEDIUM (changed 2026-09-13):
+#   The previous version read every file back from the medium first, to compare
+#   checksums. For system.img that is 991 MB read BEFORE writing and as much again after
+#   — about 3 GB of traffic per file. Over usbipd USB passthrough that backfired:
+#   the adapter reset itself halfway through a read (dmesg: "urb->status -104",
 #   "reset high-speed USB device"), a mcopy zawisl w stanie D na martwym uchwycie.
-#   Teraz pamietamy sumy ostatnio WGRANYCH plikow lokalnie i nosnik czytamy TYLKO
-#   do weryfikacji po zapisie. Ruch spada z ~3 GB na plik do ~2 GB, a przy powtornym
-#   uruchomieniu bez zmian - do zera.
+#   Now the checksums of the files last WRITTEN are kept locally and the medium is read
+#   ONLY to verify after writing. Traffic drops from ~3 GB per file to ~2 GB, and on a
+#   repeat run with nothing changed, to zero.
 #
-# Uzycie: sudo ~/q6a/update_a17_sd.sh [/dev/sdX | plik.img]
+# Usage: sudo update_a17_sd.sh [/dev/sdX | image.img]
 #         FORCE=1 sudo ~/q6a/update_a17_sd.sh    # zignoruj manifest, wgraj wszystko
 set -uo pipefail
 
@@ -31,20 +31,20 @@ declare -a FILES=(
 )
 
 if [ -z "$TARGET" ]; then
-  # Wykrywanie nosnika: wspolna biblioteka (bez zaszytego okna rozmiaru).
+  # Medium detection: shared library (no hardcoded size window).
   source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
   TARGET=$(q6a_find_media) || exit 1
 fi
-[ -n "$TARGET" ] || { echo "STOP: nie znalazlem karty SD 200-300 GB."; lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL; exit 1; }
+[ -n "$TARGET" ] || { echo "STOP: no medium found."; lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL; exit 1; }
 
 OFF=$(sgdisk -i 1 "$TARGET" 2>/dev/null | awk '/First sector/{print $3}')
-[ -n "$OFF" ] || { echo "STOP: nie czytam GPT z $TARGET"; exit 1; }
+[ -n "$OFF" ] || { echo "STOP: cannot read the GPT from $TARGET"; exit 1; }
 SPEC="${TARGET}@@$((OFF*512))"
 
-# manifest per-nosnik: klucz = nazwa celu (urzadzenie albo plik)
-# Klucz manifestu: GUID tablicy partycji, NIE litera /dev/sdX - litera zalezy od kolejnosci
-# podpinania (2026-09-19 karta przeszla z sdf na sde i manifest .sdf sie osierocil, przez co
-# verify_card_manifest.sh nie mial z czym porownywac). Dla obrazu w pliku zostaje nazwa pliku.
+# per-medium manifest: the key is the target name (device or file)
+# Manifest key: the partition table GUID, NOT the /dev/sdX letter — the letter depends on
+# attach order (2026-09-19 the card moved from sdf to sde and the .sdf manifest was orphaned,
+# leaving verify_card_manifest.sh nothing to compare against). For a file image the name is kept.
 if [ -b "$TARGET" ]; then
   CARD_ID=$(sgdisk -p "$TARGET" 2>/dev/null | awk -F'): ' '/Disk identifier \(GUID/{print $2}' | tr -d ' ')
   [ -n "$CARD_ID" ] || CARD_ID=$(basename "$TARGET")
@@ -52,7 +52,7 @@ else
   CARD_ID=$(basename "$TARGET")
 fi
 MAN="$HOME/q6a/.a17_sd_manifest.$CARD_ID"
-# jednorazowa migracja starego klucza po literze, zeby nie zgubic policzonych hashy
+# one-off migration of the old letter-based key, so the computed hashes are not lost
 if [ ! -f "$MAN" ] && [ -b "$TARGET" ]; then
   for legacy in $HOME/q6a/.a17_sd_manifest.sd?; do
     [ -f "$legacy" ] || continue
@@ -71,20 +71,20 @@ echo
 CHANGED=0
 for entry in "${FILES[@]}"; do
   SRC="${entry%%|*}"; NAME="${entry##*|}"
-  [ -f "$SRC" ] || { echo "STOP: brak $SRC"; exit 1; }
+  [ -f "$SRC" ] || { echo "STOP: $SRC not found"; exit 1; }
   SRC_SUM=$(sha256sum "$SRC" | cut -d' ' -f1)
   MB=$(( $(stat -c%s "$SRC") / 1024 / 1024 ))
 
   if [ "$FORCE" != "1" ] && grep -qx "$NAME $SRC_SUM" "$MAN" 2>/dev/null; then
-    printf "  %-38s bez zmian\n" "$NAME"
+    printf "  %-38s unchanged\n" "$NAME"
     continue
   fi
 
   printf "  %-38s wgrywam (%s MB)... " "$NAME" "$MB"
   if ! mcopy -o -i "$SPEC" "$SRC" "::/Android/$NAME"; then
-    echo "BLAD ZAPISU"
-    echo "     -> sprawdz 'dmesg | tail' - przy usbipd adapter potrafi sie zresetowac."
-    echo "     -> jesli mcopy zawisl w stanie D: sudo pkill -9 mcopy, odepnij/podepnij nosnik."
+    echo "WRITE FAILED"
+    echo "     -> check 'dmesg | tail' — over usbipd the adapter can reset itself."
+    echo "     -> if mcopy is stuck in state D: sudo pkill -9 mcopy, then re-attach the medium."
     exit 1
   fi
   sync
@@ -92,7 +92,7 @@ for entry in "${FILES[@]}"; do
   printf "weryfikuje... "
   TMP=$(mktemp -u)
   if ! mcopy -i "$SPEC" "::/Android/$NAME" "$TMP" 2>/dev/null; then
-    echo "BLAD ODCZYTU KONTROLNEGO"; rm -f "$TMP"; exit 1
+    echo "VERIFY READ FAILED"; rm -f "$TMP"; exit 1
   fi
   GOT=$(sha256sum "$TMP" | cut -d' ' -f1); rm -f "$TMP"
   if [ "$GOT" != "$SRC_SUM" ]; then
@@ -109,4 +109,4 @@ done
 echo
 echo "=== wgranych plikow: $CHANGED ==="
 mdir -i "$SPEC" ::/Android
-echo "GOTOWE."
+echo "DONE."

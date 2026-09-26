@@ -86,6 +86,26 @@ the lane swap — EDID read correctly the whole time, so the panel looked perfec
 Side effect: the PHY ends up in `QMPPHY_MODE_DP_ONLY`, which costs USB3 SuperSpeed. The
 proper fix is a second endpoint with `data-lanes = <2 3>` for USB3; that is not done yet.
 
+## How big a card do I need?
+
+The image occupies a fixed 3 GB (the ESP) plus 32 MB for `metadata`. Everything beyond
+that becomes `/data`:
+
+| Card | Left for `/data` |
+|---|---|
+| 8 GB | 4 GiB |
+| 16 GB | 11 GiB |
+| 32 GB | 26 GiB |
+| 64 GB | 56 GiB |
+| 256 GB | 235 GiB |
+
+The hard minimum is about 3.3 GB, so any 4 GB card will boot — but with only a little
+room for `/data` it gets tight as soon as anything is installed. 16 GB is usable, 32 GB is
+comfortable.
+
+There is no upper limit and no required size range: the partitions are sized to whatever
+medium you write to, be it a card, a USB stick or an NVMe drive.
+
 ## Repository layout
 
 | Path | Contents |

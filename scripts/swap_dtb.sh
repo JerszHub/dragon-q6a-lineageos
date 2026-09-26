@@ -1,47 +1,48 @@
 #!/bin/bash
 #
-# swap_dtb.sh — podmienia DTB na karcie miedzy wariantem Z wyswietlaczem i BEZ, bez przebudowy.
+# swap_dtb.sh — swaps the DTB on the medium between display and no-display variants,
+#               without rebuilding anything.
 #
-# Warianty do bisekcji. Kazdy rozni sie od "display" DOKLADNIE JEDNA wlasciwoscia status,
-# zrobione przez dtc round-trip z dtb-display.dtb (zweryfikowane diffem - patrz nizej).
+# Variants for bisection. Each differs from "display" by EXACTLY ONE status property,
+# produced by a dtc round-trip from dtb-display.dtb (verified by diff — see below).
 #
-#   display    mdss okay   dp okay   gpu okay    <- D: wiesza sie tuz po "bound 3d00000.gpu" (6/6)
-#   nodisplay  mdss disab. dp disab. gpu okay    <- A: wstaje, ale bez system_server
+#   display    mdss okay   dp okay   gpu okay    <- D: hangs right after "bound 3d00000.gpu" (6/6)
+#   nodisplay  mdss disab. dp disab. gpu okay    <- A: boots, but without system_server
 #   dpoff      mdss okay   dp DISAB. gpu okay    <- B: czy winne DP, czy sam DPU?
 #   gpuoff     mdss okay   dp okay   gpu DISAB.  <- C: czy winno GPU? (msm_drv.c:1026 pomija
-#                                                    niedostepny wezel, agregat sklada sie bez GPU)
+#                                                    node unavailable, the aggregate forms without the GPU)
 #   lanes      jak display, ale w phy@88e8000: USUNIETE "orientation-switch"
 #                                              + DODANE data-lanes = <0 1> w port@0/endpoint
-#              <- E: orientacja linii DP. phy-qcom-qmp-combo.c:4896 czyta data-lanes TYLKO
+#              <- E: DP lane orientation. phy-qcom-qmp-combo.c:4896 reads data-lanes ONLY
 #                 w galezi else - z "orientation-switch" sterownik rejestruje przelacznik
-#                 Type-C i czeka na orientacje, ktorej na tej plycie nikt nie poda, wiec
-#                 zostaje domyslny NORMAL = DP na liniach {3,2}. Plyta ma je na {0,1}
+#                 Type-C and waits for an orientation nothing on this board supplies, so
+#                 the default NORMAL stands = DP on lanes {3,2}. This board wires {0,1}
 #                 (potwierdzone w obu dzialajacych DTB z v7). Stad: AUX czyta EDID,
-#                 ale glowne lacze nie trenuje (max v_level reached).
+#                 but the main link never trains (max v_level reached).
 #              SKUTEK UBOCZNY: usb3_orientation = NONE -> QMPPHY_MODE_DP_ONLY,
-#                 czyli USB3 SuperSpeed na tym PHY znika. USB2 bez zmian.
+#                 so USB3 SuperSpeed on that PHY disappears. USB2 is unaffected.
 #
-# Uzycie: sudo ~/q6a/swap_dtb.sh display|nodisplay|dpoff|gpuoff|lanes [/dev/sdX | plik.img]
+# Usage: sudo swap_dtb.sh display|nodisplay|dpoff|gpuoff|lanes [/dev/sdX | image.img]
 set -euo pipefail
 
 VAR="${1:-}"
-case "$VAR" in display|nodisplay|dpoff|gpuoff|lanes) ;; *) echo "Uzycie: $0 display|nodisplay|dpoff|gpuoff|lanes [cel]"; exit 1;; esac
+case "$VAR" in display|nodisplay|dpoff|gpuoff|lanes) ;; *) echo "Usage: $0 display|nodisplay|dpoff|gpuoff|lanes [target]"; exit 1;; esac
 SRC="$HOME/q6a/dtb-${VAR}.dtb"
-[ -f "$SRC" ] || { echo "STOP: brak $SRC"; exit 1; }
+[ -f "$SRC" ] || { echo "STOP: $SRC not found"; exit 1; }
 
 TARGET="${2:-}"
 if [ -z "$TARGET" ]; then
-  # Wykrywanie nosnika: wspolna biblioteka (bez zaszytego okna rozmiaru).
+  # Medium detection: shared library (no hardcoded size window).
   source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
   TARGET=$(q6a_find_media) || exit 1
 fi
-[ -n "$TARGET" ] || { echo "STOP: nie znalazlem karty."; exit 1; }
+[ -n "$TARGET" ] || { echo "STOP: no medium found."; exit 1; }
 
 OFF=$(sgdisk -i 1 "$TARGET" 2>/dev/null | awk '/First sector/{print $3}')
 SPEC="${TARGET}@@$((OFF*512))"
 NAME=qcs6490-radxa-dragon-q6a.dtb
 
-echo "=== cel: $TARGET ==="
+echo "=== target: $TARGET ==="
 echo "=== wgrywam wariant: $VAR ($(stat -c%s "$SRC") B) ==="
 mcopy -o -i "$SPEC" "$SRC" "::/Android/$NAME"
 sync
@@ -54,10 +55,10 @@ else
   echo "=== NIEZGODNY! ==="; exit 1
 fi
 
-# manifest moze byc teraz nieaktualny dla DTB - usun wpis, zeby nie klamal
-# Klucz manifestu: GUID tablicy partycji, NIE litera /dev/sdX - litera zalezy od kolejnosci
-# podpinania (2026-09-19 karta przeszla z sdf na sde i manifest .sdf sie osierocil, przez co
-# verify_card_manifest.sh nie mial z czym porownywac). Dla obrazu w pliku zostaje nazwa pliku.
+# the manifest may now be stale for the DTB — drop the entry so it does not lie
+# Manifest key: the partition table GUID, NOT the /dev/sdX letter — the letter depends on
+# attach order (2026-09-19 the card moved from sdf to sde and the .sdf manifest was orphaned,
+# leaving verify_card_manifest.sh nothing to compare against). For a file image the name is kept.
 if [ -b "$TARGET" ]; then
   CARD_ID=$(sgdisk -p "$TARGET" 2>/dev/null | awk -F'): ' '/Disk identifier \(GUID/{print $2}' | tr -d ' ')
   [ -n "$CARD_ID" ] || CARD_ID=$(basename "$TARGET")
@@ -65,7 +66,7 @@ else
   CARD_ID=$(basename "$TARGET")
 fi
 MAN="$HOME/q6a/.a17_sd_manifest.$CARD_ID"
-# jednorazowa migracja starego klucza po literze, zeby nie zgubic policzonych hashy
+# one-off migration of the old letter-based key, so the computed hashes are not lost
 if [ ! -f "$MAN" ] && [ -b "$TARGET" ]; then
   for legacy in $HOME/q6a/.a17_sd_manifest.sd?; do
     [ -f "$legacy" ] || continue
@@ -75,4 +76,4 @@ if [ ! -f "$MAN" ] && [ -b "$TARGET" ]; then
   done
 fi
 [ -f "$MAN" ] && sed -i "/^$NAME /d" "$MAN"
-echo "GOTOWE. Na karcie jest teraz DTB: $VAR"
+echo "DONE. The medium now carries DTB variant: $VAR"

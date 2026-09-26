@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest>
   <!--
-    2026-09-20: WSZYSTKIE 31 projektow odpiete od lineage-23.2 - upstream ma juz
-    lineage-24.0 dla kazdego z nich (sprawdzone git ls-remote 2026-09-19).
-    Kopia poprzedniej wersji: q6a_unbranched.xml.bak-0920
+    2026-09-20: ALL 31 projects were unpinned from lineage-23.2 — upstream now has
+    lineage-24.0 for every one of them (checked with git ls-remote on 2026-09-19).
 
-    ZOSTAJE TYLKO external/mesa i to NIE jako przypiecie, tylko jako DEKLARACJA
-    ISTNIENIA. Tego projektu NIE MA ani w default.xml, ani w roomservice.xml -
-    wciaga go dopiero lineage.dependencies z device/mainline/common. Bez tego
-    wpisu mesa znika z drzewa. Brak atrybutu revision = domyslna rewizja
-    manifestu, czyli refs/heads/lineage-24.0.
+    ONLY external/mesa remains, and NOT as a pin: it is here to DECLARE THAT THE
+    PROJECT EXISTS. That project is in neither default.xml nor roomservice.xml; only
+    lineage.dependencies in device/mainline/common pulls it in, and without this entry
+    Mesa disappears from the tree. No revision attribute means the manifest default,
+    i.e. refs/heads/lineage-24.0.
   -->
   <project path="external/mesa" name="LineageOS/android_external_mesa" />
 </manifest>

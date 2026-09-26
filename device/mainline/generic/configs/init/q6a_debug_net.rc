@@ -5,8 +5,9 @@
 #
 # The display is disabled on this board for now, so SurfaceFlinger fails and the
 # framework never reaches system_server. Without the framework nothing configures
-# the network, which also means adb over TCP is unreachable even though adbd runs
-# and service.adb.tcp.port is already set to 5555 by product.prop.
+# the network, which also means adb over TCP is unreachable even though adbd runs.
+# (An earlier version of this comment claimed product.prop sets
+# service.adb.tcp.port. It does not — verified 2026-09-19. The script sets it.)
 #
 # docs/debugging.md describes doing this by hand from a serial console, but the
 # debug UART on this board is wired for receive only, so the commands have to be
@@ -25,6 +26,6 @@ service q6a_debug_net /system/bin/sh /vendor/bin/q6a_debug_net.sh
     class core
     user root
     group root
-    # nie oneshot: skrypt pilnuje konfiguracji przez ~30 s
+    # deliberately not oneshot: the script defends the configuration for a while
     disabled
     seclabel u:r:su:s0

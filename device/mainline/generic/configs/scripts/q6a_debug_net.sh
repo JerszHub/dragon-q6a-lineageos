@@ -1,51 +1,46 @@
 #!/system/bin/sh
 # LOCAL DEBUG AID for the Radxa Dragon Q6A bring up. NOT upstream material.
 #
-# Procedura 1:1 z device/mainline/generic/docs/debugging.md, sekcja
+# Follows device/mainline/generic/docs/debugging.md, section
 # "Gathering ADB access via ethernet ... when system services encounters crash loop".
-# Wymaga androidboot.insecure_adb=true (mamy w cmdline wpisu a17-pdclk).
+# Requires androidboot.insecure_adb=true (present in the a17 command line).
 #
-# DLACZEGO "stop" JEST PIERWSZY: framework na tej plycie kreci sie w petli
-# (SurfaceFlinger nie wstaje, bo DP nie trenuje lacza), a kazdy restart netd
-# i system_server czysci reczna konfiguracje eth0. "stop" zatrzymuje klase main,
-# adbd przezywa (class core). Przy okazji konczy petle SurfaceFlingera, czyli
-# daje nam STABILNY system do diagnozy zamiast wiecznie restartujacego sie.
+# WHY setprop service.adb.tcp.port: VERIFIED 2026-09-19 — nothing in the image sets this
+# property (an earlier assumption that product.prop did was simply wrong). Without it adbd
+# listens on USB only and the TCP connection times out despite correct ARP.
 #
-# DLACZEGO setprop service.adb.tcp.port: SPRAWDZONE 2026-09-19 - nic w obrazie
-# tej wlasciwosci NIE USTAWIA (wczesniej zalozylem, ze robi to product.prop - blednie).
-# Bez niej adbd sluchа wylacznie po USB i polaczenie TCP wygasa mimo poprawnego ARP.
+# Addresses below are from the development setup: 192.168.137.50 (host = Windows ICS at
+# 192.168.137.1) and 192.168.1.100. Adjust them for your network, or drop this file.
+# Then: adb connect 192.168.137.50:5555
 #
-# Adresy: 192.168.137.50 (host = Windows ICS, 192.168.137.1) oraz 192.168.1.100.
-# Potem: adb connect 192.168.137.50:5555
-#
-# Usunac, gdy wyswietlacz zacznie dzialac i framework bedzie wstawal sam.
+# Remove once the display works and the framework comes up on its own.
 set -x
 
-# 2026-09-19, PO NAPRAWIE ORIENTACJI LINII DP: "stop" USUNIETY.
-# Byl potrzebny, gdy SurfaceFlinger krecil sie w petli (DP nie trenowal lacza) - wtedy
-# netd restartowal sie bez konca i czyscil reczna konfiguracje eth0. Po poprawce
-# data-lanes/orientation-switch lacze trenuje sie na HBR2 i SF jest zdrowy, wiec "stop"
-# tylko PRZESZKADZA: skrypt robi "stop adbd; start adbd", to przelacza init.svc.adbd,
-# co przez wyzwalacz w q6a_debug_net.rc restartuje ten skrypt, ktory znowu robi "stop"
-# -> Android wstaje do logo i ginie, w kolko (zaobserwowane: 24 starty uslugi w jednym boocie).
-# Sama konfiguracja adresu zostaje - petla nizej pilnuje go przed netd.
+# 2026-09-19, AFTER FIXING THE DP LANE ORIENTATION: "stop" was REMOVED from this script.
+# It was needed while SurfaceFlinger was looping (DP never trained), because netd then
+# restarted endlessly and wiped the manual eth0 configuration. With the
+# data-lanes/orientation-switch fix the link trains at HBR2 and SF is healthy, so "stop"
+# only got in the way: the script did "stop adbd; start adbd", which flips init.svc.adbd,
+# which through the trigger in q6a_debug_net.rc restarts this script, which runs "stop"
+# again — Android reached the logo and died, over and over (24 service starts in a single
+# boot were observed). The address configuration stays; the loop below defends it from netd.
 
 /system/bin/ip link set eth0 up
 /system/bin/ip address add 192.168.137.50/24 dev eth0
 /system/bin/ip address add 192.168.1.100/24 dev eth0
 /system/bin/ip rule add from all lookup main
 
-# Restart adbd TYLKO gdy port nie jest jeszcze ustawiony. Bez tej blokady skrypt karmi
-# sam siebie: "stop adbd" -> init.svc.adbd sie zmienia -> wyzwalacz w q6a_debug_net.rc
-# restartuje ten skrypt -> znowu "stop adbd" -> ... (24 starty uslugi w jednym boocie).
+# Restart adbd ONLY when the port is not set yet. Without this guard the script feeds
+# itself: "stop adbd" -> init.svc.adbd changes -> the trigger in q6a_debug_net.rc restarts
+# this script -> "stop adbd" again -> ... (24 service starts in a single boot).
 if [ "$(/system/bin/getprop service.adb.tcp.port)" != "5555" ]; then
     /system/bin/setprop service.adb.tcp.port 5555
     /system/bin/stop adbd
     /system/bin/start adbd
 fi
 
-# netd teraz DZIALA (nie ma juz "stop"), wiec bedzie zarzadzal interfejsami.
-# Przez ~4,5 minuty pilnujemy, zeby nasz staly adres przetrwal jego konfiguracje.
+# netd is running now (there is no "stop" any more), so it will manage the interfaces.
+# For about four and a half minutes we make sure our static address survives its work.
 i=0
 while [ $i -lt 90 ]; do
     /system/bin/sleep 3

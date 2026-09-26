@@ -12,13 +12,13 @@
   <project path="prebuilts/mesa-build-dep" remote="github" name="LineageOS/android_prebuilts_mesa-build-dep" revision="lineage-24.0" />
   <project path="vendor/mainline" remote="github" name="LineageOS/android_vendor_mainline" />
   <!--
-    2026-09-20: zaleznosci z hardware/mainline/common/lineage.dependencies, ktorych
-    roomservice nigdy nie dociagnal. Ujawnily sie dopiero przy pelnym produkcie
-    lineage_Generic_arm64, ktory wlacza HAL audio mainline:
+    2026-09-20: dependencies from hardware/mainline/common/lineage.dependencies that
+    roomservice never fetched. They only surfaced with the full lineage_Generic_arm64
+    product, which enables the mainline audio HAL:
       hardware/mainline/common/interfaces/audio/mainline/Android.bp:44
       "android.hardware.audio.service-aidl.mainline" depends on undefined module "libasound"
-    Przy aosp_Generic_arm64 ten HAL nie byl budowany, wiec brak nie bolal.
-    Obie galezie lineage-24.0 sprawdzone i niepuste (533b21f7 / b695e875).
+    With aosp_Generic_arm64 that HAL was not built, so the gap did not hurt.
+    Both lineage-24.0 branches checked and non-empty (533b21f7 / b695e875).
   -->
   <project path="external/alsa-lib" remote="github" name="LineageOS/android_external_alsa-lib" />
   <project path="external/alsa-ucm-conf" remote="github" name="LineageOS/android_external_alsa-ucm-conf" />
