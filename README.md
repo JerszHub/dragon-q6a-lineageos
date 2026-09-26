@@ -102,6 +102,24 @@ small so it downloads quickly; the space is claimed on the device.
 A `.img.zst` is published alongside for anyone who prefers faster decompression, but
 Etcher handles the `.xz` without any extra tooling.
 
+### If Etcher stalls
+
+Two things are worth knowing, both seen while preparing this release.
+
+**Etcher sits at "Starting" and never begins writing.** On Windows this happens when the
+target disk carries no partition table Windows recognises — a brand new drive, or one
+whose table was wiped by an earlier interrupted write. Windows will not hand such a disk
+to an application. Open Disk Management (`diskmgmt.msc`), let it initialise the disk as
+GPT when it offers, then run Etcher again. Writing starts immediately.
+
+**Etcher sits at "Decompressing".** Keep the image on a local disk. Reading it across a
+network path — including `\\wsl.localhost\...` — makes decompression crawl. Copy the
+`.xz` somewhere local first.
+
+For reference, on a USB 3.2 Gen 2 enclosure a write of this image took about five seconds
+at roughly 1200 MB/s. If yours is taking many minutes, the cable is the first thing to
+check: a USB 2.0 cable looks identical and caps the link at about 20 MB/s.
+
 ## How big a card do I need?
 
 The image occupies a fixed 3 GB (the ESP) plus 32 MB for `metadata`. Everything beyond
