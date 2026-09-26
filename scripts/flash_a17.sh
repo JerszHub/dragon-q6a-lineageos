@@ -69,7 +69,27 @@ if lsblk -no MOUNTPOINT "$TARGET" | grep -q .; then
 fi
 
 echo; echo "=== 1/5 zapis obrazu"
-dd if="$IMG" of="$TARGET" bs=4M conv=fsync status=progress
+# UWAGA: `dd status=progress` pokazuje predkosc przyjmowania danych do PAMIECI PODRECZNEJ,
+# nie zapisu na nosnik. Przy conv=fsync licznik potrafi pokazac 1,2 GB/s, a potem ZAMRZEC
+# na minuty, bo trwa zrzut. (2026-09-26: tak wygladal zapis, ktory realnie szedl 20 MB/s.)
+# Dlatego czytamy sektory zapisane z /sys/block/<dev>/stat - to prawdziwy ruch.
+DEVNAME=$(basename "$(readlink -f "$TARGET")")
+STAT=/sys/block/$DEVNAME/stat
+sec0=$(awk '{print $7}' "$STAT" 2>/dev/null || echo 0)
+t0=$(date +%s)
+dd if="$IMG" of="$TARGET" bs=4M conv=fsync status=none &
+DDPID=$!
+while kill -0 "$DDPID" 2>/dev/null; do
+  sleep 2
+  sec=$(awk '{print $7}' "$STAT" 2>/dev/null || echo "$sec0")
+  mb=$(( (sec - sec0) * 512 / 1024 / 1024 ))
+  el=$(( $(date +%s) - t0 )); [ "$el" -lt 1 ] && el=1
+  pct=$(( mb * 100 / (IMGSZ/1024/1024) )); [ "$pct" -gt 100 ] && pct=100
+  printf "\r    %4s MB / %s MB  (%3s%%)  %s MB/s  " "$mb" "$((IMGSZ/1024/1024))" "$pct" "$(( mb / el ))"
+done
+RC=0; wait "$DDPID" || RC=$?    # jawnie, bo `set -e` przerwaloby skrypt na `wait`
+printf "\n"
+[ "$RC" = 0 ] || { echo "STOP: dd zakonczylo sie bledem $RC"; exit 1; }
 sync
 echo "=== 2/5 przenosze zapasowy GPT na koniec nosnika"
 sgdisk -e "$TARGET" >/dev/null
