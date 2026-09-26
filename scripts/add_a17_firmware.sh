@@ -25,16 +25,9 @@ FW_SRC=$HOME/q6a/glodroid/device/glodroid/dragon_q6a/firmware
 TARGET="${1:-}"
 
 if [ -z "$TARGET" ]; then
-  for d in /dev/sd?; do
-    [ -b "$d" ] || continue
-    # Dyski systemowe odsiewamy po TYM CZYM SA, nie po literze: litera /dev/sdX zalezy od
-    # kolejnosci podpinania i sie zmienia (2026-09-19: karta wyszla jako /dev/sde, czyli
-    # dokladnie na dawnej czarnej liscie -> wszystkie te skrypty mowily "nie znalazlem karty").
-    [ "$(lsblk -dno RM "$d" 2>/dev/null | tr -d '[:space:]')" = "1" ] || continue
-    [ "$(lsblk -dno TRAN "$d" 2>/dev/null | tr -d '[:space:]')" = "usb" ] || continue
-    GB=$(( $(lsblk -bdno SIZE "$d" 2>/dev/null || echo 0) / 1024/1024/1024 ))
-    if [ "$GB" -ge 200 ] && [ "$GB" -le 300 ]; then TARGET="$d"; break; fi
-  done
+  # Wykrywanie nosnika: wspolna biblioteka (bez zaszytego okna rozmiaru).
+  source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
+  TARGET=$(q6a_find_media) || exit 1
 fi
 [ -n "$TARGET" ] || { echo "STOP: nie znalazlem karty SD 200-300 GB."; lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL; exit 1; }
 
@@ -67,6 +60,32 @@ mcopy -o -i "$SPEC" "$FW_SRC/a660_zap.mbn" ::/Android/firmware/qcom/qcs6490/a660
 # (first_stage_init.cpp:641) jest nie do spelnienia, wiec petla wisi az do twardego
 # limitu 30 s z Gerrita #501523.
 # Pomiar: apexd-bootstrap 36,64 s -> 9,64 s, adbd 41,62 -> 14,50, bootanim 42,13 -> 15,03.
+# AUDIO: firmware ADSP + topologia LPASS (zweryfikowane na sprzecie 2026-09-25)
+# Bez adsp.mbn `remoteproc0` (nazwa "adsp") zostaje `offline`, wiec q6apm/GPR nigdy nie
+# wstaja i karta ALSA NIE ISTNIEJE (/proc/asound/cards puste).
+# Bez topologii komponent APM nie przechodzi probe'a:
+#   qcom-apm gprsvc:service:2:1: tplg firmware loading .../QCS6490-Radxa-Dragon-Q6A-tplg.bin failed -2
+#   snd-sc8280xp sound: ASoC: failed to instantiate card -2
+# UWAGA NA SCIEZKI - SA ROZNE:
+#   adsp.mbn -> qcom/qcs6490/radxa/dragon-q6a/   (z wezla remoteproc `firmware-name`)
+#   tplg.bin -> qcom/qcs6490/                    (nazwa z `model` karty, BEZ podkatalogu)
+AUD_SRC=${AUDIO_FW_SRC:-$HOME/q6a/glodroid/device/glodroid/dragon_q6a/firmware/qcom/qcs6490/radxa/dragon-q6a}
+for d in ::/Android/firmware/qcom/qcs6490/radxa ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a; do
+  mmd -i "$SPEC" "$d" 2>/dev/null || true
+done
+if [ -f "$AUD_SRC/adsp.mbn" ]; then
+  mcopy -o -i "$SPEC" "$AUD_SRC/adsp.mbn" ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a/adsp.mbn
+  echo "    audio: adsp.mbn"
+else
+  echo "    UWAGA: brak $AUD_SRC/adsp.mbn - NIE BEDZIE DZWIEKU"
+fi
+if [ -f "$AUD_SRC/QCS6490-Radxa-Dragon-Q6A-tplg.bin" ]; then
+  mcopy -o -i "$SPEC" "$AUD_SRC/QCS6490-Radxa-Dragon-Q6A-tplg.bin" ::/Android/firmware/qcom/qcs6490/QCS6490-Radxa-Dragon-Q6A-tplg.bin
+  echo "    audio: QCS6490-Radxa-Dragon-Q6A-tplg.bin"
+else
+  echo "    UWAGA: brak topologii - karta ALSA sie nie zainstancjonuje"
+fi
+
 REG_SRC=${LINEAGE_OUT:-${LINEAGE_TREE:-$HOME/q6a/lineage}/out/target/product/Generic_arm64}/vendor/firmware
 for f in regulatory.db regulatory.db.p7s; do
   if [ -f "$REG_SRC/$f" ]; then
@@ -87,7 +106,8 @@ sync
 
 echo
 echo "=== weryfikacja ==="
-echo "-- firmware/ --";     mdir -i "$SPEC" ::/Android/firmware | grep -Ei "regulatory|bytes"
+echo "-- firmware/ --";     mdir -i "$SPEC" ::/Android/firmware | grep -Ei "regulatory|tplg|bytes"
+echo "-- audio adsp --";    mdir -i "$SPEC" ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a 2>/dev/null | grep -Ei "adsp|bytes"
 echo "-- qcom/ --";          mdir -i "$SPEC" ::/Android/firmware/qcom | grep -E "a660|bytes"
 echo "-- qcom/qcs6490/ --";  mdir -i "$SPEC" ::/Android/firmware/qcom/qcs6490 | grep -E "a660|bytes"
 echo "-- wpis a17-fix --"

@@ -114,12 +114,31 @@ Upstream filters out only `nouveau`. Removing drivers one at a time with `filter
 costs one full build per driver — we paid for `asahi`, `imagination`, `radeonsi`, `amd`
 and `etnaviv` that way.
 
-## Writing the SD card
+## Writing a card or an SSD
+
+`scripts/flash_a17.sh` writes a release image to any medium — SD, USB or NVMe — and sizes
+the partitions to whatever that medium actually is:
 
 ```bash
-sudo scripts/mk_a17_sdimg.sh                      # build the image
+sudo scripts/flash_a17.sh                 # plan only, nothing is written
+sudo scripts/flash_a17.sh --apply         # write
+sudo scripts/flash_a17.sh /dev/sdX --apply
+```
+
+`dd` alone is not enough. The image is 3 GB, so its backup GPT sits at the end of the
+*image*; on a larger medium the rest of the disk stays invisible to partitioning until the
+backup table is moved to the real end (`sgdisk -e`). The script does that, then creates
+`metadata` and `userdata` across the remaining space.
+
+The medium is found by what it *is* — a disk whose GPT has a partition named `ESP` — not by
+size, removability or bus. There is no minimum or maximum size. If more than one medium
+matches, the script lists them and asks you to name one rather than guessing.
+
+Other tooling:
+
+```bash
+sudo scripts/mk_a17_release.sh                    # build a release image
 sudo scripts/update_a17_sd.sh                     # refresh an existing card
-sudo scripts/make_userdata_and_quiet_boot.sh --apply   # add metadata + userdata
 sudo scripts/set_default_entry.sh a17 /dev/sdX 0  # pick the boot entry
 ```
 

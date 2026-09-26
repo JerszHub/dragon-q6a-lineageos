@@ -19,13 +19,9 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 APPLY=0; TARGET=""
 for a in "$@"; do case "$a" in --apply) APPLY=1;; /dev/*) TARGET="$a";; *) echo "nieznany: $a"; exit 1;; esac; done
 if [ -z "$TARGET" ]; then
-  for d in /dev/sd?; do
-    [ -b "$d" ] || continue
-    [ "$(lsblk -dno RM "$d" 2>/dev/null | tr -d '[:space:]')" = "1" ] || continue
-    [ "$(lsblk -dno TRAN "$d" 2>/dev/null | tr -d '[:space:]')" = "usb" ] || continue
-    GB=$(( $(lsblk -bdno SIZE "$d" 2>/dev/null || echo 0) / 1024/1024/1024 ))
-    [ "$GB" -ge 200 ] && [ "$GB" -le 300 ] && { TARGET="$d"; break; }
-  done
+  # Wykrywanie nosnika: wspolna biblioteka (bez zaszytego okna rozmiaru).
+  source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/q6a_find_media.sh"
+  TARGET=$(q6a_find_media) || exit 1
 fi
 [ -n "$TARGET" ] || { echo "STOP: nie znalazlem karty."; lsblk -o NAME,SIZE,TRAN,RM; exit 1; }
 OFF=$(sgdisk -i 1 "$TARGET" | awk '/First sector/{print $3}')
