@@ -1,8 +1,8 @@
 diff --git a/Generic_arm64/BoardConfig.mk b/Generic_arm64/BoardConfig.mk
-index 14e92ba..701ba9e 100644
+index 14e92ba..1294c67 100644
 --- a/Generic_arm64/BoardConfig.mk
 +++ b/Generic_arm64/BoardConfig.mk
-@@ -50,3 +50,46 @@ TARGET_KERNEL_CONFIG_EXT := \
+@@ -50,3 +50,48 @@ TARGET_KERNEL_CONFIG_EXT := \
      kernel/mainline/configs/fragments/y/fbcon.config \
      $(DEVICE_PATH)/configs/kernel/customizations.config
  endif
@@ -30,25 +30,27 @@ index 14e92ba..701ba9e 100644
 +BOARD_MESA3D_GALLIUM_DRIVERS := freedreno
 +BOARD_MESA3D_VULKAN_DRIVERS := freedreno
 +
-+# Q6A 2026-09-21: WiFi i Bluetooth — AIC8800D80 na USB (a69c:8d80, po firmware 8d81).
++# Q6A: WiFi and Bluetooth - AIC8800D80 on USB (a69c:8d80, 8d81 once the firmware is up).
 +# Modules built FROM SOURCE (radxa-pkg/aic8800) against our kernel; see build_aic8800.sh.
 +# The v7 modules were RadxaOS prebuilts (vermagic 6.18.2-4-qcom) and will NOT load here.
 +#
-+# ⚠️ PLACEMENT: device/mainline/generic/BoardConfig.mk sets BOARD_VENDOR_KERNEL_MODULES_LOAD
++# aic_btusb.ko is deliberately absent. The chip's Bluetooth interfaces are standard USB
++# class 0xE0, which the kernel's own btusb driver handles; aic_btusb claims them instead
++# and exposes /dev/aicbt_dev, which the stock HAL cannot use. See q6a_load_wifi_bt.sh.
++#
++# The modules are loaded by the q6a_load_wifi_bt service, not from modules.load, and they
++# are deliberately NOT added to BOARD_VENDOR_KERNEL_MODULES_LOAD: the depmod pass that
++# produces vendor_dlkm's modules.dep does not cover modules added here, so libmodprobe
++# cannot resolve these names and dlkm_loader_mainline aborts on the CHECK in its main().
++# Listing them there buys nothing and costs a SIGABRT in the boot log.
++#
++# PLACEMENT: device/mainline/generic/BoardConfig.mk assigns BOARD_VENDOR_KERNEL_MODULES_LOAD
 +# with ":=" at line 82, and our kernel/board.mk is included EARLIER (line 74), so an entry
 +# there would be overwritten. This file includes the parent at line 7, so it runs after it.
-+#
-+# ⚠️ ORDER MATTERS: aic_load_fw uploads the firmware and the chip re-enumerates
-+# (8d80 -> 8d81), dopiero potem aic8800_fdrv moze go obsluzyc.
 +DRAGON_Q6A_MODULES := device/radxa/dragon_q6a/kernel/modules
 +BOARD_VENDOR_KERNEL_MODULES += \
 +    $(DRAGON_Q6A_MODULES)/aic_load_fw.ko \
-+    $(DRAGON_Q6A_MODULES)/aic8800_fdrv.ko \
-+    $(DRAGON_Q6A_MODULES)/aic_btusb.ko
-+BOARD_VENDOR_KERNEL_MODULES_LOAD += \
-+    aic_load_fw.ko \
-+    aic8800_fdrv.ko \
-+    aic_btusb.ko
++    $(DRAGON_Q6A_MODULES)/aic8800_fdrv.ko
 diff --git a/configs/init/Android.bp b/configs/init/Android.bp
 index 6fc8a81..a7e73b0 100644
 --- a/configs/init/Android.bp

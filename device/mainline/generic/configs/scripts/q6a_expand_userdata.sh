@@ -14,6 +14,8 @@
 # On every later boot both checks are false and the script exits immediately.
 set -x
 LOG=/data/local/tmp/q6a_expand.log
+# Records that stage 1 has already asked for a reboot. See the guard in stage 1.
+STAMP=/data/local/tmp/q6a_expand.rebooted
 exec >>"$LOG" 2>&1
 echo "=== $(date) expand check ==="
 
@@ -32,21 +34,80 @@ case "$DEV" in
 esac
 echo "disk=$DISK part=$PART"
 
+# Reads one field of the partition entry, e.g. part_field "Last sector".
+#
+# LONG OPTIONS ONLY. Android's sgdisk is built from external/gptfdisk without the short
+# forms: -i, -e, -d and -n all come back as "sgdisk: invalid option". A script using them
+# does nothing at all, and because an empty PART_END makes the stage 1 test below succeed,
+# it then asks for a reboot on every single boot. That is exactly how the v2 release
+# bricked itself, so the numeric guard underneath is as important as the option names.
+part_field() {
+    /system/bin/sgdisk --info="$PART" "$DISK" | /system/bin/grep "$1" | \
+        /system/bin/sed 's/[^0-9]*\([0-9]*\).*/\1/'
+}
+
+# True only for a non-empty string of digits.
+is_number() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 DISK_SECT=$(/vendor/bin/blockdev --getsz "$DISK") || exit 0
-PART_END=$(/system/bin/sgdisk -i "$PART" "$DISK" | /system/bin/grep "Last sector" | /system/bin/sed 's/[^0-9]*\([0-9]*\).*/\1/')
+PART_END=$(part_field "Last sector")
+if ! is_number "$DISK_SECT" || ! is_number "$PART_END"; then
+    echo "cannot read geometry (disk_sectors='$DISK_SECT' part_end='$PART_END') - giving up"
+    exit 0
+fi
 LAST_USABLE=$((DISK_SECT - 34))
 echo "disk_sectors=$DISK_SECT part_end=$PART_END last_usable=$LAST_USABLE"
 
 # Stage 1: the partition does not reach the end of the medium.
 # The 64 MiB margin keeps us from churning on a partition that is already effectively full.
 if [ "$PART_END" -lt $((LAST_USABLE - 131072)) ]; then
+    # An unconditional reboot here would be dangerous: if writing the table fails for any
+    # reason, every boot would request another reboot and the board would loop forever,
+    # which is the worst failure mode a release image can have. Two guards prevent that.
+    # First guard: a stamp file, so a reboot is never requested twice on the same medium.
+    if [ -e "$STAMP" ]; then
+        echo "partition still short, but $STAMP exists - refusing to reboot again"
+        exit 0
+    fi
+
     echo "growing partition $PART"
-    START=$(/system/bin/sgdisk -i "$PART" "$DISK" | /system/bin/grep "First sector" | /system/bin/sed 's/[^0-9]*\([0-9]*\).*/\1/')
-    NAME=$(/system/bin/sgdisk -i "$PART" "$DISK" | /system/bin/grep "Partition name" | /system/bin/sed "s/.*'\(.*\)'.*/\1/")
-    /system/bin/sgdisk -e "$DISK"
-    /system/bin/sgdisk -d "$PART" "$DISK"
-    /system/bin/sgdisk -n "$PART:$START:0" -t "$PART:8300" -c "$PART:$NAME" "$DISK"
+    NAME=$(/system/bin/sgdisk --info="$PART" "$DISK" | /system/bin/grep "Partition name" | \
+        /system/bin/sed "s/.*'\(.*\)'.*/\1/")
+    # Recreating the partition resets its type and unique GUID to sgdisk's defaults, so
+    # both are carried over explicitly: the type because nothing should silently change a
+    # partition's purpose, the unique GUID because a PARTUUID= reference to it (an fstab
+    # entry, a kernel parameter) would otherwise stop resolving.
+    TYPE=$(/system/bin/sgdisk --info="$PART" "$DISK" | /system/bin/grep "Partition GUID code" | \
+        /system/bin/sed 's/[^:]*: *\([0-9A-Fa-f-]*\).*/\1/')
+    UUID=$(/system/bin/sgdisk --info="$PART" "$DISK" | /system/bin/grep "Partition unique GUID" | \
+        /system/bin/sed 's/[^:]*: *\([0-9A-Fa-f-]*\).*/\1/')
+    echo "name=$NAME type=$TYPE uuid=$UUID"
+
+    /system/bin/touch "$STAMP"
     /system/bin/sync
+    /system/bin/sgdisk --move-second-header "$DISK"
+    /system/bin/sgdisk --delete="$PART" "$DISK"
+    # --largest-new rather than --new with an explicit range: after the delete above, the
+    # free block this partition used to sit in runs to the end of the medium and is by far
+    # the largest one, so there is no start sector to compute and get wrong.
+    /system/bin/sgdisk --largest-new="$PART" --typecode="$PART:$TYPE" \
+        --partition-guid="$PART:$UUID" --change-name="$PART:$NAME" "$DISK"
+    /system/bin/sync
+
+    # Second guard: only reboot once the table really changed on the medium. sgdisk cannot
+    # make the kernel re-read a table whose partitions are mounted, so this reads the
+    # partition entry back from the disk rather than trusting the exit status.
+    NEW_END=$(part_field "Last sector")
+    echo "part_end after write: $NEW_END (was $PART_END)"
+    if [ "$NEW_END" -le "$PART_END" ]; then
+        echo "sgdisk did not move the end of the partition - NOT rebooting"
+        exit 0
+    fi
     echo "partition grown, rebooting so the kernel re-reads the table"
     /system/bin/setprop sys.powerctl reboot
     exit 0

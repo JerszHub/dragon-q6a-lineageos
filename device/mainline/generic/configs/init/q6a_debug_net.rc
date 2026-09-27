@@ -3,15 +3,13 @@
 #
 # LOCAL DEBUG AID for the Radxa Dragon Q6A bring up. NOT upstream material.
 #
-# The display is disabled on this board for now, so SurfaceFlinger fails and the
-# framework never reaches system_server. Without the framework nothing configures
-# the network, which also means adb over TCP is unreachable even though adbd runs.
-# (An earlier version of this comment claimed product.prop sets
-# service.adb.tcp.port. It does not — verified 2026-09-19. The script sets it.)
+# It exists so that a board whose framework never finishes coming up is still reachable
+# over adb. Nothing configures the network before system_server runs, so adb over TCP is
+# unreachable even when adbd itself is alive.
 #
-# docs/debugging.md describes doing this by hand from a serial console, but the
-# debug UART on this board is wired for receive only, so the commands have to be
-# baked in. Remove this file once the display works and the framework comes up.
+# docs/debugging.md describes doing this by hand from a serial console, but reaching a
+# shell that way was never established on this board, so the commands have to be baked in.
+# Remove this file once the framework comes up reliably on its own.
 
 on property:sys.usb.ffs.ready=*
     start q6a_debug_net
@@ -26,6 +24,6 @@ service q6a_debug_net /system/bin/sh /vendor/bin/q6a_debug_net.sh
     class core
     user root
     group root
-    # deliberately not oneshot: the script defends the configuration for a while
+    # Not oneshot: the script keeps watching the configuration for about four minutes.
     disabled
     seclabel u:r:su:s0

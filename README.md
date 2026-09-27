@@ -9,7 +9,7 @@ used a prebuilt RadxaOS kernel, while this one builds its own kernel from
 `kernel/mainline/android-mainline`. All the hardware knowledge carries over; the Android
 layer and the kernel do not.
 
-> **Latest release: `lineage24-v2`.** Write the image with Balena Etcher and boot — the
+> **Latest release: `lineage24-v3`.** Write the image with Balena Etcher and boot — the
 > board sizes its own data partition on first run. Display, GPU, Ethernet, Wi-Fi,
 > Bluetooth, persistent `/data` and analog audio all work. Images are on the
 > [Releases](../../releases) page.
@@ -89,7 +89,7 @@ proper fix is a second endpoint with `data-lanes = <2 3>` for USB3; that is not 
 
 ## Installing
 
-1. Download `dragon_q6a_lineage24_v2.img.xz` from [Releases](../../releases)
+1. Download `dragon_q6a_lineage24_v3.img.xz` from [Releases](../../releases)
 2. Write it with [Balena Etcher](https://etcher.balena.io/), which reads `.xz` directly,
    or with `xz -d` and `dd`
 3. Put the card in the board and power on
@@ -98,6 +98,11 @@ That is the whole procedure. **The board grows the data partition by itself on f
 boot**: it moves the backup GPT to the real end of the medium, resizes `userdata` to fill
 whatever card you used, reboots once, then extends the filesystem online. The image stays
 small so it downloads quickly; the space is claimed on the device.
+
+**Give the first boot about three and a half minutes, and do not cut the power.** It
+reboots on its own partway through, which is that resize, and the screen shows kernel
+messages rather than an animation until then. Later boots reach the launcher in about two
+minutes. The resize is logged to `/data/local/tmp/q6a_expand.log` if you want to check it.
 
 A `.img.zst` is published alongside for anyone who prefers faster decompression, but
 Etcher handles the `.xz` without any extra tooling.

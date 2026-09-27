@@ -3,9 +3,15 @@
 #
 # Q6A: grow userdata to fill the medium on first boot. See q6a_expand_userdata.sh.
 # Runs at post-fs-data, once /data is mounted and its block device is known.
-
+#
+# exec_start, not start: the script reboots the board when it has to repartition, and with
+# an asynchronous start that reboot lands in the middle of whatever else post-fs-data began
+# a few tens of milliseconds earlier. It was observed cutting the WiFi firmware upload in
+# half (an EINTR read of the /vendor erofs image), and there is nothing to stop it landing
+# somewhere less harmless. Blocking the action queue keeps the first boot deterministic;
+# the cost is that every later boot waits for the two checks to come back false.
 on post-fs-data
-    start q6a_expand_userdata
+    exec_start q6a_expand_userdata
 
 service q6a_expand_userdata /system/bin/sh /vendor/bin/q6a_expand_userdata.sh
     class core
