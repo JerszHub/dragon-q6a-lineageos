@@ -86,6 +86,25 @@ else
   echo "    WARNING: topology missing — the ALSA card will not instantiate"
 fi
 
+# Video (Venus) and QUP serial-engine firmware, both from upstream linux-firmware.
+# Without venus.mbn the video codec fails to probe; without qupv3fw.elf no I2C or SPI bus comes up.
+LFW_SRC=${LINUX_FW_SRC:-$HOME/q6a/linux-firmware-q6a}
+for d in ::/Android/firmware/qcom/vpu-2.0 ::/Android/firmware/qcom/qcm6490; do
+  mmd -i "$SPEC" "$d" 2>/dev/null || true
+done
+if [ -f "$LFW_SRC/qcom/vpu/vpu20_p1.mbn" ]; then
+  mcopy -o -i "$SPEC" "$LFW_SRC/qcom/vpu/vpu20_p1.mbn" ::/Android/firmware/qcom/vpu-2.0/venus.mbn
+  echo "    video: venus.mbn"
+else
+  echo "    WARNING: $LFW_SRC/qcom/vpu/vpu20_p1.mbn missing - no hardware video codecs"
+fi
+if [ -f "$LFW_SRC/qcom/qcm6490/qupv3fw.elf" ]; then
+  mcopy -o -i "$SPEC" "$LFW_SRC/qcom/qcm6490/qupv3fw.elf" ::/Android/firmware/qcom/qcm6490/qupv3fw.elf
+  echo "    qup: qupv3fw.elf"
+else
+  echo "    WARNING: $LFW_SRC/qcom/qcm6490/qupv3fw.elf missing - no I2C or SPI"
+fi
+
 REG_SRC=${LINEAGE_OUT:-${LINEAGE_TREE:-$HOME/q6a/lineage}/out/target/product/Generic_arm64}/vendor/firmware
 for f in regulatory.db regulatory.db.p7s; do
   if [ -f "$REG_SRC/$f" ]; then

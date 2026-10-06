@@ -28,6 +28,9 @@ source build/envsetup.sh > /dev/null 2>&1
 # that is the full product: Lineage boot animation, apps, LineageSettingsProvider.
 # Poprzedni wariant: build_q6a_a17.sh.bak-aosp-0920
 lunch lineage_Generic_arm64-cp2a-userdebug > /dev/null 2>&1
+# Q6A_DEBUG_NET=true includes q6a_debug_net (adb over TCP with fixed addresses). The board has
+# no USB device mode, so without it there is no adb at all. Build releases with Q6A_DEBUG_NET=false.
+export Q6A_DEBUG_NET=${Q6A_DEBUG_NET:-true}
 export LINEAGE_BUILD=Generic_arm64          # BoardConfigLineage.mk is only included when this is set
 export SOONG_INCREMENTAL_ANALYSIS=false
 export SOONG_BUILD_GOMEMLIMIT=20GiB         # nasza latka w build/soong/ui/build/soong.go

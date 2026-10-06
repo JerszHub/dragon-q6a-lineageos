@@ -1,0 +1,17 @@
+diff --git a/src/gallium/drivers/freedreno/driinfo_freedreno.h b/src/gallium/drivers/freedreno/driinfo_freedreno.h
+index 4b0dcff4386..c5270d7b3e9 100644
+--- a/src/gallium/drivers/freedreno/driinfo_freedreno.h
++++ b/src/gallium/drivers/freedreno/driinfo_freedreno.h
+@@ -1,6 +1,12 @@
+ // freedreno specific driconf options
+ 
+ DRI_CONF_SECTION_MISCELLANEOUS
++   /* Offload driver work to a second thread. Measured on a QCS6490 (Adreno 643) running
++    * Genshin Impact: libgallium_dri.so accounted for 19.8% of the process's CPU time, with
++    * the frame interval histogram showing 30% of frames landing on 33ms rather than 16ms,
++    * which is the shape of a main thread waiting on the driver rather than a GPU that is
++    * out of headroom. Upstream leaves this off for freedreno; measure before keeping it. */
++   DRI_CONF_MESA_GLTHREAD_DRIVER(true)
+    DRI_CONF_HEAP_MEMORY_PERCENT(0)
+    DRI_CONF_DISABLE_CONSERVATIVE_LRZ(false)
+    DRI_CONF_DISABLE_EXPLICIT_SYNC_HEURISTIC(false)

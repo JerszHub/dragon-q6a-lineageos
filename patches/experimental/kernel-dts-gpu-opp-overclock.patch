@@ -1,0 +1,64 @@
+Experimental, not shipped: expose the 840/900 MHz GPU operating points and request full DDR
+bandwidth at the top three points on the Radxa Dragon Q6A.
+
+Status (2026-10-06): the board did not boot with this applied (it was deployed together with
+the bandwidth change, and the two were never tested apart). It is also not useful for games:
+measured GPU busy time while playing stays at 45% median and 63% at most, so the GPU is not the
+bottleneck. LDSR also requires clocks that follow the SoC vendor's binning, which this exceeds.
+Kept for reference only. Apply in the kernel tree with `git apply`.
+
+--- a/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
++++ b/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
+@@ -514,6 +514,52 @@
+ 	firmware-name = "qcom/qcs6490/a660_zap.mbn";
+ };
+ 
++/*
++ * Expose the TURBO and TURBO_L1 GPU operating points, which raises the ceiling from 812 MHz
++ * to 900 MHz.
++ *
++ * kodiak.dtsi marks both as opp-supported-hw = <0x02>, i.e. speed bin 1 only. This board is
++ * bin 2: of the masks in that table (0x17, 0x16, 0x06) the only bit common to all three that
++ * is absent from 0x02 is bit 2, and every OPP carrying it is exposed here while these two are
++ * not. Adding that bit lets devfreq use them; rpmhpd supplies the TURBO and TURBO_L1 corners,
++ * which are ordinary levels present in cmd-db.
++ *
++ * This is above what Qualcomm validated for this bin, so it is a deliberate overclock rather
++ * than a fix: the part was not tested at 900 MHz. Cooling does not decide the outcome, silicon
++ * leakage does. A failure shows up as a GMU fault or rendering artefacts and is undone by
++ * reverting this override.
++ */
++&gpu_opp_table {
++	/*
++	 * Raise the DDR bandwidth request at the top operating points. kodiak.dtsi asks for
++	 * 8532000 kB/s from 700 MHz upwards, the same figure sc7180 uses, while this board
++	 * carries LPDDR5-5500 on a 32-bit bus, which is 22 GB/s. The highest request anywhere
++	 * in the system is the CPU cluster's 12790000 on its own path to EBI1, so the memory
++	 * controller never sees a reason to leave its middle states.
++	 *
++	 * The interconnect aggregates peak requests by taking the maximum, so asking for the
++	 * full bus at the points where the GPU is working keeps DDR in its top state for the
++	 * whole frame rather than ramping per access pattern. This is a deliberately inflated
++	 * demand, not a measurement of what the GPU consumes. It costs memory power and buys
++	 * latency; RPMh clamps anything the hardware cannot provide, so it cannot ask for an
++	 * impossible state. Points below 812 MHz keep their stock request so that light loads
++	 * do not hold DDR high.
++	 */
++	opp-812000000 {
++		opp-peak-kBps = <22000000>;
++	};
++
++	opp-840000000 {
++		opp-supported-hw = <0x06>;
++		opp-peak-kBps = <22000000>;
++	};
++
++	opp-900000000 {
++		opp-supported-hw = <0x06>;
++		opp-peak-kBps = <22000000>;
++	};
++};
++
+ /* Pin 13, 15 in GPIO header */
+ &i2c0 {
+ 	qcom,enable-gsi-dma;

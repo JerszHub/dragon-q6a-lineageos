@@ -29,7 +29,7 @@ cp "$IMG_SRC" "$OUT"
 SPEC="$OUT@@1048576"
 
 echo "=== 2/5 staging firmware (GPU + regulatory + audio)"
-"$HERE/add_a17_firmware.sh" "$OUT" 2>&1 | grep -E "audio:|regulatory:|UWAGA" | sed 's/^/    /' || true
+"$HERE/add_a17_firmware.sh" "$OUT" 2>&1 | grep -E "audio:|video:|qup:|regulatory:|WARNING|UWAGA" | sed 's/^/    /' || true
 
 echo "=== 3/5 installing the release boot entries"
 for e in a17 a17-udbg a17-quiet; do
@@ -57,6 +57,7 @@ for f in ::/Android/Image ::/Android/qcs6490-radxa-dragon-q6a.dtb ::/Android/sys
          ::/Android/firmware/regulatory.db \
          ::/Android/firmware/qcom/qcs6490/QCS6490-Radxa-Dragon-Q6A-tplg.bin \
          ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a/adsp.mbn \
+         ::/Android/firmware/qcom/vpu-2.0/venus.mbn ::/Android/firmware/qcom/qcm6490/qupv3fw.elf \
          ::/loader/loader.conf ::/loader/entries/a17.conf ::/EFI/BOOT/BOOTAA64.EFI; do
   mtype -i "$SPEC" "$f" >/dev/null 2>&1 && echo "    OK  $f" || { echo "    MISSING $f"; exit 1; }
 done

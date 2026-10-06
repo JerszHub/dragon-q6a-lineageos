@@ -52,10 +52,10 @@ index 14e92ba..1294c67 100644
 +    $(DRAGON_Q6A_MODULES)/aic_load_fw.ko \
 +    $(DRAGON_Q6A_MODULES)/aic8800_fdrv.ko
 diff --git a/configs/init/Android.bp b/configs/init/Android.bp
-index 6fc8a81..a7e73b0 100644
+index 6fc8a81..d4447a4 100644
 --- a/configs/init/Android.bp
 +++ b/configs/init/Android.bp
-@@ -43,3 +43,27 @@ prebuilt_etc {
+@@ -43,3 +43,43 @@ prebuilt_etc {
      src: "ueventd.generic.rc",
      vendor: true,
  }
@@ -83,11 +83,73 @@ index 6fc8a81..a7e73b0 100644
 +    sub_dir: "overlay-system_ext-etc-init",
 +    vendor: true,
 +}
++
++// Q6A: install user-supplied Google Apps.
++prebuilt_etc {
++    name: "q6a_install_gapps.rc",
++    src: "q6a_install_gapps.rc",
++    sub_dir: "overlay-system_ext-etc-init",
++    vendor: true,
++}
++
++// Q6A: performance tuning.
++prebuilt_etc {
++    name: "q6a_tuning.rc",
++    src: "q6a_tuning.rc",
++    sub_dir: "overlay-system_ext-etc-init",
++    vendor: true,
++}
+diff --git a/configs/properties/vendor.prop b/configs/properties/vendor.prop
+index d301860..e14caf1 100644
+--- a/configs/properties/vendor.prop
++++ b/configs/properties/vendor.prop
+@@ -29,3 +29,41 @@ ro.boot.wifi_mac_prefix=5554
+ 
+ # ZRAM
+ persist.sys.zram_enabled=1
++
++
++# Genshin Impact, and anything else that keys its rendering path off GL_RENDERER
++#
++# Mesa named this chip through the a635 wildcard entry until commit b1e851d66c3
++# ("freedreno: Add Adreno 643", 2023-09-26), which gave chip_id 0x00ac06030500 its own entry
++# called "FD643". Genshin recognises the old name and not the new one, and on the new one it
++# silently drops to a path that renders no water and no rocks, shades with the wrong shadow
++# cascades and corrupts world textures, while the 2D interface stays perfect. The driver is
++# correct throughout; only the string the application matches on changed. Confirmed on
++# hardware: restoring the old name fixes it completely.
++#
++# This affects every QCM6490/QCS6490 device on a Mesa that carries that commit, Fairphone 5
++# among them. The proper fix belongs in Mesa's per-application workarounds in
++# 00-mesa-defaults.conf, which already carries two entries of exactly this kind.
++mesa.force.gl.renderer=Adreno 7c+ Gen 3
++
++# Mesa's on-disk shader cache is deliberately NOT enabled here.
++# Mesa turns it off on Android because the EGL layer manages one through
++# EGL_ANDROID_blob_cache, and that is the path this device's GLES clients take. Pointing
++# mesa.shader.cache.dir at a shared directory was tried on 2026-09-28 and made things worse:
++# the cache stayed empty and the first client to touch the directory created it 0700, which
++# locked every other client out of caching at all.
++
++# Use the multifile EGL blob cache instead of the default monolithic one.
++# The monolithic cache holds at most 2 MiB in total and 64 KiB per entry. Mesa caches every
++# compiled shader variant through it, and a single Genshin Impact session writes about
++# 1,700 entries and 9 MB, so the monolithic file is always full and keeps evicting what the
++# next session needs. Every entry it loses is a shader the driver recompiles at draw time,
++# which showed up as frames of 100 ms to over 3 s.
++# Measured on hardware (2026-10-06): with a cache that survives between sessions, the time the
++# rendering thread spent waiting for shader compiles dropped from about 7.7 s to 0.4 s per
++# session, and no stall above 300 ms remained.
++# This needs the fix to MultifileBlobCache::get() carried in frameworks/native: without it,
++# every lookup with a buffer larger than the cached value, which is what Mesa always does,
++# is treated as a miss.
++ro.egl.blobcache.multifile=true
++ro.egl.blobcache.multifile_limit=134217728
 diff --git a/configs/scripts/Android.bp b/configs/scripts/Android.bp
-index b02da95..ee2356b 100644
+index b02da95..b721ab8 100644
 --- a/configs/scripts/Android.bp
 +++ b/configs/scripts/Android.bp
-@@ -14,3 +14,24 @@ prebuilt_bin {
+@@ -14,3 +14,38 @@ prebuilt_bin {
      src: "device_generic_settings.sh",
      vendor: true,
  }
@@ -112,11 +174,35 @@ index b02da95..ee2356b 100644
 +    src: "q6a_expand_userdata.sh",
 +    vendor: true,
 +}
++
++// Q6A: build product/system_ext images from a user-supplied Google Apps package.
++prebuilt_bin {
++    name: "q6a_install_gapps.sh",
++    src: "q6a_install_gapps.sh",
++    vendor: true,
++}
++
++// Q6A: pin the board at its maximum sustained clocks.
++prebuilt_bin {
++    name: "q6a_perf.sh",
++    src: "q6a_perf.sh",
++    vendor: true,
++}
 diff --git a/device.mk b/device.mk
-index f65bfc7..6e69dab 100644
+index f65bfc7..7edf467 100644
 --- a/device.mk
 +++ b/device.mk
-@@ -41,7 +41,11 @@ PRODUCT_PACKAGES += \
+@@ -20,6 +20,9 @@ TARGET_SCREEN_HEIGHT := 300
+ # Camera
+ TARGET_EXTERNAL_CAMERA_PROVIDER_HAL := default-aidl
+ 
++# Video codecs: the V4L2 stateful Codec2 HAL, on top of the Venus driver
++TARGET_MEDIA_C2_HAL := v4l2_codec2
++
+ # Dalvik heap
+ $(call inherit-product, frameworks/native/build/tablet-10in-xhdpi-2048-dalvik-heap.mk)
+ 
+@@ -41,7 +44,11 @@ PRODUCT_PACKAGES += \
  
  # Graphics (Mesa)
  TARGET_MESA_DO_NOT_SET_AS_DEFAULT := true
@@ -129,7 +215,7 @@ index f65bfc7..6e69dab 100644
  
  # Graphics allocator
  PRODUCT_PACKAGES += \
-@@ -184,9 +188,38 @@ PRODUCT_SOONG_NAMESPACES += \
+@@ -184,9 +191,45 @@ PRODUCT_SOONG_NAMESPACES += \
      $(DEVICE_PATH) \
      kernel/mainline/configs
  
@@ -142,10 +228,13 @@ index f65bfc7..6e69dab 100644
 +PRODUCT_COPY_FILES += $(foreach f,$(wildcard device/radxa/dragon_q6a/firmware/aic8800/*), \
 +    $(f):$(TARGET_COPY_OUT_VENDOR)/etc/firmware/$(notdir $(f)))
 +
-+# LOCAL DEBUG AID for Radxa Dragon Q6A bring up, remove once the display works.
++# adb over TCP on Ethernet. The board has no USB device mode, so this is the only adb
++# channel during development. Release builds must not listen for adb on the network.
++ifeq ($(Q6A_DEBUG_NET),true)
 +PRODUCT_PACKAGES += \
 +    q6a_debug_net.rc \
 +    q6a_debug_net.sh
++endif
 +
 +# Q6A: jawne ladowanie sterownikow WiFi/BT - aliasy w vendor_dlkm/modules.alias
 +# do not cover our prebuilts, and nothing on this device reads modules.load.
@@ -153,7 +242,11 @@ index f65bfc7..6e69dab 100644
 +    q6a_load_wifi_bt.rc \
 +    q6a_load_wifi_bt.sh \
 +    q6a_expand_userdata.rc \
-+    q6a_expand_userdata.sh
++    q6a_expand_userdata.sh \
++    q6a_install_gapps.rc \
++    q6a_install_gapps.sh \
++    q6a_tuning.rc \
++    q6a_perf.sh
 +
  # USB
 +# Q6A: ship the gadget stub ONLY when no real HAL has been selected.
