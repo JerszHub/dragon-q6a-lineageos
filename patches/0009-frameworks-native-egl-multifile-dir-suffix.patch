@@ -1,0 +1,104 @@
+diff --git a/opengl/libs/EGL/MultifileBlobCache.h b/opengl/libs/EGL/MultifileBlobCache.h
+index ed35706182..f7daa42e36 100644
+--- a/opengl/libs/EGL/MultifileBlobCache.h
++++ b/opengl/libs/EGL/MultifileBlobCache.h
+@@ -45,6 +45,16 @@ namespace android {
+ constexpr uint32_t kMultifileBlobCacheVersion = 3;
+ constexpr char kMultifileBlobCacheStatusFile[] = "cache.status";
+ 
++// Suffix of the directory that holds the cache entries, appended to the cache file path the
++// framework hands us. AOSP uses ".multifile". This device uses a different name because
++// Genshin Impact deletes "<cache path>.multifile" every time it starts (seen with kprobes on
++// filename_unlinkat/filename_renameat2: its UnityMain thread renames every entry to *_tmp,
++// unlinks it and removes the directory), which throws away every compiled shader and makes
++// the next session recompile all of them at draw time. It leaves other names alone, including
++// the monolithic cache file at the same path. This is a local workaround, not a fix for
++// upstream: the app is entitled to clear its own cache.
++constexpr char kMultifileDirSuffix[] = ".blobs";
++
+ struct MultifileHeader {
+     uint32_t magic;
+     uint32_t crc;
+diff --git a/opengl/libs/EGL/MultifileBlobCache_test.cpp b/opengl/libs/EGL/MultifileBlobCache_test.cpp
+index e1bf53970f..2e74ffa1b4 100644
+--- a/opengl/libs/EGL/MultifileBlobCache_test.cpp
++++ b/opengl/libs/EGL/MultifileBlobCache_test.cpp
+@@ -315,7 +315,7 @@ TEST_F(MultifileBlobCacheTest, EnsureFileDescriptorsClosed) {
+ 
+ std::vector<std::string> MultifileBlobCacheTest::getCacheEntries() {
+     std::string cachePath = &mTempFile->path[0];
+-    std::string multifileDirName = cachePath + ".multifile";
++    std::string multifileDirName = cachePath + kMultifileDirSuffix;
+     std::vector<std::string> cacheEntries;
+ 
+     struct stat info;
+@@ -348,7 +348,7 @@ std::vector<std::string> MultifileBlobCacheTest::getCacheEntries() {
+ TEST_F(MultifileBlobCacheTest, CacheContainsStatus) {
+     struct stat info;
+     std::stringstream statusFile;
+-    statusFile << &mTempFile->path[0] << ".multifile/" << kMultifileBlobCacheStatusFile;
++    statusFile << &mTempFile->path[0] << kMultifileDirSuffix << "/" << kMultifileBlobCacheStatusFile;
+ 
+     // After INIT, cache should have a status
+     ASSERT_TRUE(stat(statusFile.str().c_str(), &info) == 0);
+@@ -385,7 +385,7 @@ TEST_F(MultifileBlobCacheTest, MissingCacheStatusClears) {
+ 
+     // Delete the status file
+     std::stringstream statusFile;
+-    statusFile << &mTempFile->path[0] << ".multifile/" << kMultifileBlobCacheStatusFile;
++    statusFile << &mTempFile->path[0] << kMultifileDirSuffix << "/" << kMultifileBlobCacheStatusFile;
+     remove(statusFile.str().c_str());
+ 
+     // Open the cache again and ensure no cache hits
+@@ -410,7 +410,7 @@ TEST_F(MultifileBlobCacheTest, ModifiedCacheStatusBeginClears) {
+ 
+     // Modify the status file
+     std::stringstream statusFile;
+-    statusFile << &mTempFile->path[0] << ".multifile/" << kMultifileBlobCacheStatusFile;
++    statusFile << &mTempFile->path[0] << kMultifileDirSuffix << "/" << kMultifileBlobCacheStatusFile;
+ 
+     // Stomp on the beginning of the cache file
+     const char* stomp = "BADF00D";
+@@ -442,7 +442,7 @@ TEST_F(MultifileBlobCacheTest, ModifiedCacheStatusEndClears) {
+ 
+     // Modify the status file
+     std::stringstream statusFile;
+-    statusFile << &mTempFile->path[0] << ".multifile/" << kMultifileBlobCacheStatusFile;
++    statusFile << &mTempFile->path[0] << kMultifileDirSuffix << "/" << kMultifileBlobCacheStatusFile;
+ 
+     // Stomp on the END of the cache status file, modifying its contents
+     const char* stomp = "BADF00D";
+@@ -715,7 +715,7 @@ TEST_F(MultifileBlobCacheTest, GetUpdatesAccessTime) {
+ 
+ bool MultifileBlobCacheTest::clearCache() {
+     std::string cachePath = &mTempFile->path[0];
+-    std::string multifileDirName = cachePath + ".multifile";
++    std::string multifileDirName = cachePath + kMultifileDirSuffix;
+ 
+     DIR* dir = opendir(multifileDirName.c_str());
+     if (dir == nullptr) {
+diff --git a/opengl/tests/EGLTest/egl_cache_test.cpp b/opengl/tests/EGLTest/egl_cache_test.cpp
+index ce5818229a..7db4eb9d5e 100644
+--- a/opengl/tests/EGLTest/egl_cache_test.cpp
++++ b/opengl/tests/EGLTest/egl_cache_test.cpp
+@@ -108,7 +108,7 @@ TEST_P(EGLCacheTest, ReinitializedCacheContainsValues) {
+ std::string EGLCacheTest::getCachefileName() {
+     // Return the monolithic filename unless we find the multifile dir
+     std::string cachePath = &mTempFile->path[0];
+-    std::string multifileDirName = cachePath + ".multifile";
++    std::string multifileDirName = cachePath + kMultifileDirSuffix;
+     std::string cachefileName = "";
+ 
+     struct stat info;
+diff --git a/opengl/libs/EGL/MultifileBlobCache.cpp b/opengl/libs/EGL/MultifileBlobCache.cpp
+--- a/opengl/libs/EGL/MultifileBlobCache.cpp
++++ b/opengl/libs/EGL/MultifileBlobCache.cpp
+@@ -113,7 +113,7 @@
+     }
+ 
+     // Establish the name of our multifile directory
+-    mMultifileDirName = baseDir + ".multifile";
++    mMultifileDirName = baseDir + kMultifileDirSuffix;
+ 
+     // Set the hotcache limit to be large enough to contain one max entry
+     // This ensure the hot cache is always large enough for single entry

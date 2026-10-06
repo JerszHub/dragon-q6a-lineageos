@@ -1,0 +1,21 @@
+diff --git a/opengl/libs/EGL/MultifileBlobCache.cpp b/opengl/libs/EGL/MultifileBlobCache.cpp
+index 2e22e0b11e..bb67b6ee40 100644
+--- a/opengl/libs/EGL/MultifileBlobCache.cpp
++++ b/opengl/libs/EGL/MultifileBlobCache.cpp
+@@ -513,9 +513,14 @@ EGLsizeiANDROID MultifileBlobCache::get(const void* key, EGLsizeiANDROID keySize
+         cacheEntry = mHotCache[entryHash].entryBuffer;
+     }
+ 
+-    // Ensure the header matches
++    // Ensure the header matches. Compare the value size against what we recorded for this
++    // entry, not against the caller's buffer: EGL_ANDROID_blob_cache lets the caller pass a
++    // buffer larger than the value, and the copy below only writes cachedValueSize bytes.
++    // Comparing against valueSize turned every such lookup into a miss. Mesa always queries
++    // with a 64 KiB buffer, so in multifile mode nearly all of its entries were written but
++    // never read back.
+     MultifileHeader* header = reinterpret_cast<MultifileHeader*>(cacheEntry);
+-    if (header->keySize != keySize || header->valueSize != valueSize) {
++    if (header->keySize != keySize || header->valueSize != cachedValueSize) {
+         ALOGW("Mismatch on keySize(%ld vs. cached %ld) or valueSize(%ld vs. cached %ld) compared "
+               "to cache header values for fullPath: %s",
+               keySize, header->keySize, valueSize, header->valueSize, fullPath.c_str());

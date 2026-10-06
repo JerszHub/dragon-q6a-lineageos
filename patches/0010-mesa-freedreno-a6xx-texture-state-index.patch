@@ -1,0 +1,257 @@
+diff --git a/src/gallium/drivers/freedreno/a6xx/fd6_context.h b/src/gallium/drivers/freedreno/a6xx/fd6_context.h
+index e27d81aa000..3cf12bf73ad 100644
+--- a/src/gallium/drivers/freedreno/a6xx/fd6_context.h
++++ b/src/gallium/drivers/freedreno/a6xx/fd6_context.h
+@@ -10,6 +10,7 @@
+ #ifndef FD6_CONTEXT_H_
+ #define FD6_CONTEXT_H_
+ 
++#include "util/u_dynarray.h"
+ #include "util/u_upload_mgr.h"
+ 
+ #include "freedreno_context.h"
+@@ -119,6 +120,15 @@ struct fd6_context {
+    struct hash_table *tex_cache;
+    bool tex_cache_needs_invalidate;
+ 
++   /* Reverse map from a tex_ids seqno to the tex_cache entries whose key
++    * references that seqno, so that deleting a sampler-view or sampler-state
++    * does not have to walk the entire tex_cache.  Indexed by seqno; each
++    * element is a util_dynarray of (struct fd6_texture_state *).  A zeroed
++    * util_dynarray is a valid empty one, so new slots just need memset().
++    */
++   struct util_dynarray *tex_state_refs;
++   unsigned num_tex_state_refs;
++
+    /**
+     * Descriptor sets for 3d shader stages
+     */
+diff --git a/src/gallium/drivers/freedreno/a6xx/fd6_texture.cc b/src/gallium/drivers/freedreno/a6xx/fd6_texture.cc
+index 393e353ccd1..f3aa5c0769c 100644
+--- a/src/gallium/drivers/freedreno/a6xx/fd6_texture.cc
++++ b/src/gallium/drivers/freedreno/a6xx/fd6_texture.cc
+@@ -11,6 +11,7 @@
+ #include "util/format/u_format.h"
+ #include "util/hash_table.h"
+ #include "util/u_inlines.h"
++#include "util/u_math.h"
+ #include "util/u_memory.h"
+ #include "util/u_string.h"
+ 
+@@ -25,14 +26,140 @@
+ 
+ static void fd6_texture_state_destroy(struct fd6_texture_state *state);
+ 
++/*
++ * Reverse map from a tex_ids seqno to the tex_cache entries referencing it.
++ *
++ * Deleting a sampler-view or a sampler-state has to drop every tex_cache
++ * entry whose key mentions its seqno.  The tex_cache is unbounded (it grows
++ * with the number of distinct texture/sampler combinations the application
++ * uses), so scanning all of it per deletion is O(n) with the screen lock
++ * held.  Applications that stream in a lot of textures hit this hard: on a
++ * QCS6490 running Genshin Impact it was ~16% of the process' CPU time, all
++ * of it on the threaded-context driver thread, which the GL frontend then
++ * blocks on in eglSwapBuffers().  Keeping the reverse map makes the lookup
++ * proportional to the number of entries actually affected.
++ */
++
++static struct util_dynarray *
++tex_state_refs(struct fd6_context *fd6_ctx, uint16_t seqno)
++{
++   if (seqno >= fd6_ctx->num_tex_state_refs) {
++      unsigned n = MAX2(256u, util_next_power_of_two(seqno + 1));
++      fd6_ctx->tex_state_refs = (struct util_dynarray *)realloc(
++         fd6_ctx->tex_state_refs, n * sizeof(struct util_dynarray));
++      memset(&fd6_ctx->tex_state_refs[fd6_ctx->num_tex_state_refs], 0,
++             (n - fd6_ctx->num_tex_state_refs) * sizeof(struct util_dynarray));
++      fd6_ctx->num_tex_state_refs = n;
++   }
++
++   return &fd6_ctx->tex_state_refs[seqno];
++}
++
++#define TEX_KEY_NUM_SEQNOS                                                     \
++   (ARRAY_SIZE(((struct fd6_texture_key *)NULL)->view_seqno) +                 \
++    ARRAY_SIZE(((struct fd6_texture_key *)NULL)->samp_seqno))
++
++/* Collect the distinct seqnos a key references.  Unused slots are left as
++ * zero by the caller, and zero is also a seqno util_idalloc can hand out, so
++ * it is collected like any other; that matches what the old full scan did.
++ */
++static unsigned
++tex_key_seqnos(const struct fd6_texture_key *key, uint16_t *out)
++{
++   unsigned n = 0;
++
++   for (unsigned i = 0; i < TEX_KEY_NUM_SEQNOS; i++) {
++      uint16_t seqno = (i < ARRAY_SIZE(key->view_seqno))
++                          ? key->view_seqno[i]
++                          : key->samp_seqno[i - ARRAY_SIZE(key->view_seqno)];
++      bool dup = false;
++
++      for (unsigned j = 0; j < n; j++) {
++         if (out[j] == seqno) {
++            dup = true;
++            break;
++         }
++      }
++
++      if (!dup)
++         out[n++] = seqno;
++   }
++
++   return n;
++}
++
++static void
++tex_state_ref_add(struct fd6_context *fd6_ctx, struct fd6_texture_state *state)
++{
++   uint16_t seqnos[TEX_KEY_NUM_SEQNOS];
++   unsigned n = tex_key_seqnos(&state->key, seqnos);
++
++   for (unsigned i = 0; i < n; i++) {
++      util_dynarray_append_typed(tex_state_refs(fd6_ctx, seqnos[i]),
++                                 struct fd6_texture_state *, state);
++   }
++}
++
++static void
++tex_state_ref_del(struct fd6_context *fd6_ctx, struct fd6_texture_state *state)
++{
++   uint16_t seqnos[TEX_KEY_NUM_SEQNOS];
++   unsigned n = tex_key_seqnos(&state->key, seqnos);
++
++   for (unsigned i = 0; i < n; i++) {
++      struct util_dynarray *refs = tex_state_refs(fd6_ctx, seqnos[i]);
++      unsigned len =
++         util_dynarray_num_elements(refs, struct fd6_texture_state *);
++
++      for (unsigned j = 0; j < len; j++) {
++         struct fd6_texture_state **elem =
++            util_dynarray_element(refs, struct fd6_texture_state *, j);
++
++         if (*elem == state) {
++            *elem = *util_dynarray_element(refs, struct fd6_texture_state *,
++                                           len - 1);
++            (void)util_dynarray_pop(refs, struct fd6_texture_state *);
++            break;
++         }
++      }
++   }
++}
++
+ static void
+ remove_tex_entry(struct fd6_context *fd6_ctx, struct hash_entry *entry)
+ {
+    struct fd6_texture_state *tex = (struct fd6_texture_state *)entry->data;
++   tex_state_ref_del(fd6_ctx, tex);
+    _mesa_hash_table_remove(fd6_ctx->tex_cache, entry);
+    fd6_texture_state_destroy(tex);
+ }
+ 
++/* Drop every tex_cache entry whose key references @seqno. */
++static void
++invalidate_by_seqno(struct fd_context *ctx, uint16_t seqno)
++{
++   struct fd6_context *fd6_ctx = fd6_context(ctx);
++
++   fd_screen_lock(ctx->screen);
++
++   if (seqno < fd6_ctx->num_tex_state_refs) {
++      struct util_dynarray *refs = &fd6_ctx->tex_state_refs[seqno];
++
++      while (util_dynarray_num_elements(refs, struct fd6_texture_state *)) {
++         struct fd6_texture_state *state =
++            *util_dynarray_element(refs, struct fd6_texture_state *, 0);
++         struct hash_entry *entry =
++            _mesa_hash_table_search(fd6_ctx->tex_cache, &state->key);
++
++         assert(entry);
++         /* also drops @state from the dynarray we are walking: */
++         remove_tex_entry(fd6_ctx, entry);
++      }
++   }
++
++   fd_screen_unlock(ctx->screen);
++}
++
+ static enum a6xx_tex_clamp
+ tex_clamp(unsigned wrap, bool *needs_border)
+ {
+@@ -393,20 +520,7 @@ fd6_sampler_state_delete(struct pipe_context *pctx, void *hwcso)
+    struct fd6_context *fd6_ctx = fd6_context(ctx);
+    struct fd6_sampler_stateobj *samp = (struct fd6_sampler_stateobj *)hwcso;
+ 
+-   fd_screen_lock(ctx->screen);
+-
+-   hash_table_foreach (fd6_ctx->tex_cache, entry) {
+-      struct fd6_texture_state *state = (struct fd6_texture_state *)entry->data;
+-
+-      for (unsigned i = 0; i < ARRAY_SIZE(state->key.samp_seqno); i++) {
+-         if (samp->seqno == state->key.samp_seqno[i]) {
+-            remove_tex_entry(fd6_ctx, entry);
+-            break;
+-         }
+-      }
+-   }
+-
+-   fd_screen_unlock(ctx->screen);
++   invalidate_by_seqno(ctx, samp->seqno);
+ 
+    util_idalloc_free(&fd6_ctx->tex_ids, samp->seqno);
+ 
+@@ -441,22 +555,7 @@ static void
+ fd6_sampler_view_invalidate(struct fd_context *ctx,
+                             struct fd6_pipe_sampler_view *view)
+ {
+-   struct fd6_context *fd6_ctx = fd6_context(ctx);
+-
+-   fd_screen_lock(ctx->screen);
+-
+-   hash_table_foreach (fd6_ctx->tex_cache, entry) {
+-      struct fd6_texture_state *state = (struct fd6_texture_state *)entry->data;
+-
+-      for (unsigned i = 0; i < ARRAY_SIZE(state->key.view_seqno); i++) {
+-         if (view->seqno == state->key.view_seqno[i]) {
+-            remove_tex_entry(fd6_ctx, entry);
+-            break;
+-         }
+-      }
+-   }
+-
+-   fd_screen_unlock(ctx->screen);
++   invalidate_by_seqno(ctx, view->seqno);
+ }
+ 
+ template <chip CHIP>
+@@ -877,6 +976,7 @@ fd6_texture_state(struct fd_context *ctx, mesa_shader_stage type)
+     */
+    _mesa_hash_table_insert_pre_hashed(fd6_ctx->tex_cache, hash, &state->key,
+                                       state);
++   tex_state_ref_add(fd6_ctx, state);
+ 
+ out_unlock:
+    fd_screen_unlock(ctx->screen);
+@@ -944,6 +1044,8 @@ fd6_texture_init(struct pipe_context *pctx) disable_thread_safety_analysis
+ 
+    fd6_ctx->tex_cache = _mesa_hash_table_create(NULL, tex_key_hash, tex_key_equals);
+    util_idalloc_init(&fd6_ctx->tex_ids, 256);
++   fd6_ctx->tex_state_refs = NULL;
++   fd6_ctx->num_tex_state_refs = 0;
+ }
+ FD_GENX(fd6_texture_init);
+ 
+@@ -961,6 +1063,12 @@ fd6_texture_fini(struct pipe_context *pctx)
+ 
+    fd_screen_unlock(ctx->screen);
+ 
++   for (unsigned i = 0; i < fd6_ctx->num_tex_state_refs; i++)
++      util_dynarray_fini(&fd6_ctx->tex_state_refs[i]);
++   free(fd6_ctx->tex_state_refs);
++   fd6_ctx->tex_state_refs = NULL;
++   fd6_ctx->num_tex_state_refs = 0;
++
+    util_idalloc_fini(&fd6_ctx->tex_ids);
+    ralloc_free(fd6_ctx->tex_cache);
+    fd_bo_del(fd6_ctx->bcolor_mem);
