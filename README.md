@@ -104,6 +104,18 @@ reboots on its own partway through, which is that resize, and the screen shows k
 messages rather than an animation until then. Later boots reach the launcher in about two
 minutes. The resize is logged to `/data/local/tmp/q6a_expand.log` if you want to check it.
 
+## Google Apps
+
+Not included, and they cannot be: LineageOS may not redistribute them and neither may this
+project. You download `MindTheGapps` for Android 17 arm64 yourself, drop it in **Download**
+and reboot; the board builds what it needs and installs it. It wipes your data in the
+process, which is a requirement rather than a side effect, so do it before setting the
+device up. Full procedure in [docs/GAPPS.md](docs/GAPPS.md).
+
+**Experimental:** only the path without a package has been verified on hardware so far; a full
+install has not. The official LineageOS route, installing from Lineage Recovery, needs a recovery
+this board does not have yet (see [docs/UPSTREAM.md](docs/UPSTREAM.md)).
+
 A `.img.zst` is published alongside for anyone who prefers faster decompression, but
 Etcher handles the `.xz` without any extra tooling.
 
