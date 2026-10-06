@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-26.
+Last updated: 2026-10-06.
 
 ## Verified on hardware
 
@@ -17,8 +17,8 @@ Last updated: 2026-09-26.
 | Audio over HDMI | declared, unverified | `displayport-dai-link` in DT, `hdmi-audio-codec` registers, no routing yet |
 | Bluetooth audio | untested | A2DP profile active in the framework |
 | NVMe | untested | `nvme.ko` is in the image |
-| HW video codecs | not started | |
-| I²C / SPI | broken | board `qupv3fw.elf` missing |
+| HW video codecs | kernel works, Android not wired | Venus probes with `vpu20_p1.mbn` from upstream linux-firmware (`qcom-venus-encoder`, `qcom-venus-decoder`); needs the V4L2 Codec2 HAL |
+| I²C / SPI | fixable | `qcom/qcm6490/qupv3fw.elf` from upstream linux-firmware binds all three I²C and both SPI controllers (tested 2026-10-06 by loading it at runtime) |
 | USB3 SuperSpeed | broken by design | PHY forced to DP-only, see README |
 | MIPI-DSI | not started | |
 
