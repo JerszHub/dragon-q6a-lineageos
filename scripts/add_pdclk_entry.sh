@@ -1,8 +1,9 @@
 #!/bin/bash
 #
 # add_pdclk_entry.sh — boot entry 'a17-pdclk': stops unused power domains and clocks from
+# being switched off at boot.
 #
-# PODSTAWA (log uart_dpoff_1723.log):
+# BASIS (log uart_dpoff_1723.log):
 #   [ 3.001749] PM: genpd: Disabling unused power domains
 #               clk: Disabling unused clocks
 #   [51.717267] generic_init: Loading module /vendor_dlkm/lib/modules/msm.ko
@@ -10,13 +11,13 @@
 #   [52.510398] Console: switching to colour dummy device 80x25   <- last line, then PSHOLD
 #
 # So the kernel powers down the MDSS domain and its clocks three seconds in, while the msm
-# 48 SECONDS LATER. Nothing holds a reference in between, because simpledrm is disabled
-# driver arrives much later. If bringing the GDSC up in pm_runtime_get_sync() does not reach
+# driver arrives 48 SECONDS LATER. Nothing holds a reference in between, because simpledrm
+# is disabled. If bringing the GDSC up in pm_runtime_get_sync() does not reach
 # through, the first DPU register read happens with no clock -> watchdog -> PSHOLD, no panic.
 # This also explains the non-determinism: whether the domain is powered down depends on
 # whether anything holds a reference at the 3 s mark, which varies with module load order.
 #
-# Oba parametry sa w NASZYM jadrze: pd_ignore_unused (drivers/pmdomain/core.c:1367),
+# Both parameters exist in OUR kernel: pd_ignore_unused (drivers/pmdomain/core.c:1367),
 # clk_ignore_unused (drivers/clk/clk.c:1512).
 #
 # NOTE: the DTB stays on dpoff so that EXACTLY ONE thing changes against the previous boot.
@@ -51,7 +52,7 @@ printf 'timeout 10\ndefault a17-pdclk\n' > "$TMP/loader.conf"
 mcopy -o -i "$SPEC" "$TMP/loader.conf" ::/loader/loader.conf
 sync
 
-echo "=== a17-pdclk: dopisane parametry ==="
+echo "=== a17-pdclk: parameters appended ==="
 mtype -i "$SPEC" ::/loader/entries/a17-pdclk.conf | tr ' ' '\n' | grep -E "ignore_unused|console=|blacklist" | sed 's/^/  /'
 echo "=== loader.conf ==="; mtype -i "$SPEC" ::/loader/loader.conf | sed 's/^/  /'
 echo

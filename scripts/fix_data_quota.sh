@@ -39,10 +39,10 @@ UD=$(q6a_part "$TARGET" 3); MD=$(q6a_part "$TARGET" 2)
 [ -b "$UD" ] || { echo "STOP: $UD not found"; exit 1; }
 N2=$(sgdisk -i 2 "$TARGET" | sed -n "s/^Partition name: *'\(.*\)'$/\1/p")
 N3=$(sgdisk -i 3 "$TARGET" | sed -n "s/^Partition name: *'\(.*\)'$/\1/p")
-echo "  part2 nazwa GPT = '$N2'   part3 nazwa GPT = '$N3'"
+echo "  part2 GPT name = '$N2'   part3 GPT name = '$N3'"
 [ "$N2" = "metadata" ] && [ "$N3" = "userdata" ] || { echo "STOP: unexpected partition names."; exit 1; }
 echo
-echo "  cechy OBECNEGO userdata:"
+echo "  features of the CURRENT userdata:"
 tune2fs -l "$UD" 2>/dev/null | grep -i "filesystem features" | sed 's/^/    /' || echo "    (cannot read)"
 
 if [ "$APPLY" != "1" ]; then
@@ -53,7 +53,7 @@ if lsblk -no MOUNTPOINT "$TARGET" | grep -q .; then echo "STOP: something on $TA
 
 echo; echo "=== APPLYING ==="
 mkfs.ext4 -q -F -L userdata -M /data -m 0 "$UD"
-echo "  nowe cechy userdata:"
+echo "  new userdata features:"
 tune2fs -l "$UD" | grep -i "filesystem features" | sed 's/^/    /'
 if tune2fs -l "$UD" | grep -i "filesystem features" | grep -qw "quota"; then
   echo "STOP: the quota feature is STILL present — aborting."; exit 1

@@ -4,7 +4,7 @@
 #
 # Unlike verify_card.sh, this compares against the MANIFEST (checksums recorded at the
 # moment of writing) rather than against the current source files. Sources get rebuilt,
-# porownanie z nimi daje falszywe alarmy - to wlasnie zmylilo pierwszy sprawdzian.
+# so comparing against them gives false alarms - that is what misled the first check.
 #
 # It answers one question: is the medium CORRUPTED (content drifted after writing),
 # or merely out of date (the sources moved on).
@@ -35,7 +35,7 @@ if [ ! -f "$MAN" ] && [ -b "$TARGET" ]; then
   for legacy in $HOME/q6a/.a17_sd_manifest.sd?; do
     [ -f "$legacy" ] || continue
     mv "$legacy" "$MAN"
-    echo "=== manifest przeniesiony: $(basename "$legacy") -> $(basename "$MAN") ==="
+    echo "=== manifest moved: $(basename "$legacy") -> $(basename "$MAN") ==="
     break
   done
 fi
@@ -56,14 +56,14 @@ while read -r NAME SUM; do
     echo "UNREADABLE"; BAD=1; continue
   fi
   GOT=$(sha256sum "$TMP" | cut -d' ' -f1); rm -f "$TMP"
-  if [ "$GOT" = "$SUM" ]; then echo "OK (nietkniete od zapisu)"
+  if [ "$GOT" = "$SUM" ]; then echo "OK (untouched since writing)"
   else echo "CHANGED SINCE WRITING -> CORRUPTION"; BAD=1; fi
 done < "$MAN"
 
 echo
 if [ "$BAD" = "0" ]; then
   echo "=== RESULT: MEDIUM INTACT ==="
-  echo "    Wszystko, co zapisalismy, lezy na niej nietkniete."
+  echo "    Everything we wrote is still there, untouched."
   echo "    Differences reported by verify_card.sh came from rebuilt sources, not the medium."
 else
   echo "=== RESULT: MEDIUM CORRUPTED — content drifted after writing ==="

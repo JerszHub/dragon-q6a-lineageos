@@ -2,38 +2,39 @@
 # build_aic8800.sh — builds the AIC8800D80 (USB) drivers against OUR 7.1.0 kernel.
 #
 # Topology: AIC8800D80 on USB behind the on-board hub (a69c:8d80, DTS: wifi@4).
-# W v7 uzywalismy modulow PREBUILT z RadxaOS (vermagic 6.18.2-4-qcom) - na jadrze
-# 7.1.0 they will not load (different version, and we have CONFIG_MODVERSIONS while they
+# Our Android 13 builds used PREBUILT modules from RadxaOS (vermagic 6.18.2-4-qcom). On
+# kernel 7.1.0 they will not load: the version differs, and we have CONFIG_MODVERSIONS while
+# they do not.
 #
-# Zrodla: github.com/radxa-pkg/aic8800 (oficjalne pakowanie Radxy, to samo, z czego
-# do not). Raw AICSemi code does NOT compile against 7.1 — Radxa carries a Debian patch
+# Sources: github.com/radxa-pkg/aic8800 (Radxa's official packaging, the one RadxaOS is
+# built from). Raw AICSemi code does NOT compile against 7.1 — Radxa carries a Debian patch
 # `fix-linux-7.1-build.patch`. The whole series (27 patches) is applied.
 #
 # ⚠️ CONFIG_PLATFORM_UBUNTU: Radxa defaults it to "y", which puts the firmware path at
-# /lib/firmware. We build for Android, so we force "n" and the sources pick the
-# wtedy /vendor/etc/firmware (aicbluetooth.c:147-151, aic_btusb.c:2846-2850).
+# /lib/firmware. We build for Android, so we force "n" and the sources then pick
+# /vendor/etc/firmware (aicbluetooth.c:147-151, aic_btusb.c:2846-2850).
 # For the same reason we do NOT apply `fix-usb-firmware-path.patch`, which is Debian-specific.
 #
-# ⚠️ KCFLAGS=-Wno-error: Radxa buduje ten sterownik GCC (pakiet debianowy), my klangiem
-# 22 from AOSP, which warns about far more — and the Android kernel adds -Werror.
+# ⚠️ KCFLAGS=-Wno-error: Radxa builds this driver with GCC (a Debian package), we build it with
+# clang 22 from AOSP, which warns about far more — and the Android kernel adds -Werror.
 # The vendor Makefile already silences -Wno-implicit-fallthrough and -Wno-unused-variable,
-# ale klang zglasza dodatkowo -Wmisleading-indentation, -Wsometimes-uninitialized itd.
-# chasing them one by one is endless, so we drop -Werror while KEEPING the warnings
-# ostrzezenia widoczne w logu. Bledy kompilacji nadal zatrzymuja build.
+# but clang also reports -Wmisleading-indentation, -Wsometimes-uninitialized and more, and
+# chasing them one by one is endless. So we drop -Werror while KEEPING the warnings
+# visible in the log. Compile errors still stop the build.
 #
 # This did NOT mask the three REAL defects those warnings found — they are
 # fixed in the source, not silenced:
 #   aic_btusb.c:3364   ret_val used uninitialised (it feeds a printk)
-#   rwnx_tx.c:1442     msgbuf przekazywany niezainicjalizowany do intf_tcp_alloc_msg
+#   rwnx_tx.c:1442     msgbuf passed uninitialised to intf_tcp_alloc_msg
 #   aic_priv_cmd.c:279 lvl_mod uninitialised for modes 1, 3 and >=6, and reaches buf[1]
 #
 # (older note) the Android kernel builds with -Werror, and the vendor code has two kinds
-# niechlujstwa, ktore to wywalaja: niezaanotowane fall-through w switchu
-# (rwnx_msg_tx.c:623,636) i mylace wciecie (rwnx_msg_tx.c:4257). Obie sa czysto
+# of sloppiness that trip it: unannotated switch fall-throughs (rwnx_msg_tx.c:623,636)
+# and misleading indentation (rwnx_msg_tx.c:4257). Both are purely
 # cosmetic, so we silence THOSE TWO CLASSES rather than -Werror as a whole.
 # The third one — "ret_val is uninitialized" at aic_btusb.c:3387 — is NOT silenced but
 # fixed in the source (the variable only fed a printk; the function returns void anyway).
-# zwracala -1). Wyciszanie -Wuninitialized zamaskowaloby przyszle prawdziwe bledy.
+# Silencing -Wuninitialized would mask real bugs in the future.
 #
 # ⚠️ CONFIG_USE_FW_REQUEST = n (the default): the driver reads files DIRECTLY through
 # filp_open, not through request_firmware. The firmware must really sit at that path.
@@ -55,11 +56,11 @@ export PATH="$CLANG:$KBTOOLS:$PATH"
 mkdir -p "$OUT"
 : > "$LOG"
 echo "=== kernel: $(cat $KOBJ/include/config/kernel.release 2>/dev/null) ==="
-echo "=== klang: $($CLANG/clang --version | head -1) ==="
+echo "=== clang: $($CLANG/clang --version | head -1) ==="
 
 build_one() {
   local dir="$1" name="$2"
-  echo "--- buduje $name" | tee -a "$LOG"
+  echo "--- building $name" | tee -a "$LOG"
   make -C "$KSRC" O="$KOBJ" M="$dir" \
        ARCH=arm64 LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- \
        KCFLAGS="-Wno-error" \
@@ -81,7 +82,7 @@ build_one "$SRC/aic_btusb" "aic_btusb"
 
 echo
 echo "=== modules built ==="
-ls -la "$OUT"/*.ko 2>/dev/null | awk '{printf "  %8.1f KB  %s\n",$5/1024,$9}' || echo "  ZADNYCH"
+ls -la "$OUT"/*.ko 2>/dev/null | awk '{printf "  %8.1f KB  %s\n",$5/1024,$9}' || echo "  NONE"
 for m in "$OUT"/*.ko; do
   [ -f "$m" ] && echo "  $(basename $m): vermagic=$(modinfo "$m" 2>/dev/null | awk '/^vermagic/{$1="";print}' | xargs)"
 done

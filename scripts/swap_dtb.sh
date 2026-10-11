@@ -8,18 +8,18 @@
 #
 #   display    mdss okay   dp okay   gpu okay    <- D: hangs right after "bound 3d00000.gpu" (6/6)
 #   nodisplay  mdss disab. dp disab. gpu okay    <- A: boots, but without system_server
-#   dpoff      mdss okay   dp DISAB. gpu okay    <- B: czy winne DP, czy sam DPU?
-#   gpuoff     mdss okay   dp okay   gpu DISAB.  <- C: czy winno GPU? (msm_drv.c:1026 pomija
-#                                                    node unavailable, the aggregate forms without the GPU)
-#   lanes      jak display, ale w phy@88e8000: USUNIETE "orientation-switch"
-#                                              + DODANE data-lanes = <0 1> w port@0/endpoint
+#   dpoff      mdss okay   dp DISAB. gpu okay    <- B: is DP to blame, or the DPU itself?
+#   gpuoff     mdss okay   dp okay   gpu DISAB.  <- C: is the GPU to blame? (msm_drv.c:1026 skips an
+#                                                    unavailable node, the aggregate forms without the GPU)
+#   lanes      like display, but in phy@88e8000: REMOVED "orientation-switch"
+#                                              + ADDED data-lanes = <0 1> in port@0/endpoint
 #              <- E: DP lane orientation. phy-qcom-qmp-combo.c:4896 reads data-lanes ONLY
-#                 w galezi else - z "orientation-switch" sterownik rejestruje przelacznik
-#                 Type-C and waits for an orientation nothing on this board supplies, so
+#                 in the else branch - with "orientation-switch" the driver registers a
+#                 Type-C switch and waits for an orientation nothing on this board supplies, so
 #                 the default NORMAL stands = DP on lanes {3,2}. This board wires {0,1}
-#                 (potwierdzone w obu dzialajacych DTB z v7). Stad: AUX czyta EDID,
+#                 (confirmed in both working DTBs from v7). Hence: AUX reads the EDID,
 #                 but the main link never trains (max v_level reached).
-#              SKUTEK UBOCZNY: usb3_orientation = NONE -> QMPPHY_MODE_DP_ONLY,
+#              SIDE EFFECT: usb3_orientation = NONE -> QMPPHY_MODE_DP_ONLY,
 #                 so USB3 SuperSpeed on that PHY disappears. USB2 is unaffected.
 #
 # Usage: sudo swap_dtb.sh display|nodisplay|dpoff|gpuoff|lanes [/dev/sdX | image.img]
@@ -43,16 +43,16 @@ SPEC="${TARGET}@@$((OFF*512))"
 NAME=qcs6490-radxa-dragon-q6a.dtb
 
 echo "=== target: $TARGET ==="
-echo "=== wgrywam wariant: $VAR ($(stat -c%s "$SRC") B) ==="
+echo "=== writing variant: $VAR ($(stat -c%s "$SRC") B) ==="
 mcopy -o -i "$SPEC" "$SRC" "::/Android/$NAME"
 sync
 
 TMP=$(mktemp -u); trap 'rm -f "$TMP"' EXIT
 mcopy -i "$SPEC" "::/Android/$NAME" "$TMP"
 if [ "$(sha256sum "$TMP" | cut -d' ' -f1)" = "$(sha256sum "$SRC" | cut -d' ' -f1)" ]; then
-  echo "=== OK (bajt w bajt) ==="
+  echo "=== OK (byte for byte) ==="
 else
-  echo "=== NIEZGODNY! ==="; exit 1
+  echo "=== MISMATCH! ==="; exit 1
 fi
 
 # the manifest may now be stale for the DTB — drop the entry so it does not lie
@@ -71,7 +71,7 @@ if [ ! -f "$MAN" ] && [ -b "$TARGET" ]; then
   for legacy in $HOME/q6a/.a17_sd_manifest.sd?; do
     [ -f "$legacy" ] || continue
     mv "$legacy" "$MAN"
-    echo "=== manifest przeniesiony: $(basename "$legacy") -> $(basename "$MAN") ==="
+    echo "=== manifest moved: $(basename "$legacy") -> $(basename "$MAN") ==="
     break
   done
 fi

@@ -7,13 +7,13 @@
 #   checksums. For system.img that is 991 MB read BEFORE writing and as much again after
 #   — about 3 GB of traffic per file. Over usbipd USB passthrough that backfired:
 #   the adapter reset itself halfway through a read (dmesg: "urb->status -104",
-#   "reset high-speed USB device"), a mcopy zawisl w stanie D na martwym uchwycie.
+#   "reset high-speed USB device"), and mcopy hung in state D on a dead handle.
 #   Now the checksums of the files last WRITTEN are kept locally and the medium is read
 #   ONLY to verify after writing. Traffic drops from ~3 GB per file to ~2 GB, and on a
 #   repeat run with nothing changed, to zero.
 #
 # Usage: sudo update_a17_sd.sh [/dev/sdX | image.img]
-#         FORCE=1 sudo ~/q6a/update_a17_sd.sh    # zignoruj manifest, wgraj wszystko
+#         FORCE=1 sudo ~/q6a/update_a17_sd.sh    # ignore the manifest, write everything
 set -uo pipefail
 
 OUT=${LINEAGE_TREE:-$HOME/q6a/lineage}/out/target/product/Generic_arm64
@@ -57,15 +57,15 @@ if [ ! -f "$MAN" ] && [ -b "$TARGET" ]; then
   for legacy in $HOME/q6a/.a17_sd_manifest.sd?; do
     [ -f "$legacy" ] || continue
     mv "$legacy" "$MAN"
-    echo "=== manifest przeniesiony: $(basename "$legacy") -> $(basename "$MAN") ==="
+    echo "=== manifest moved: $(basename "$legacy") -> $(basename "$MAN") ==="
     break
   done
 fi
 touch "$MAN" 2>/dev/null || true
 
-echo "=== cel: $TARGET   ESP: $SPEC ==="
+echo "=== target: $TARGET   ESP: $SPEC ==="
 echo "=== manifest: $MAN ==="
-[ "$FORCE" = "1" ] && echo "=== FORCE=1: manifest ignorowany ==="
+[ "$FORCE" = "1" ] && echo "=== FORCE=1: manifest ignored ==="
 echo
 
 CHANGED=0
@@ -96,7 +96,7 @@ for entry in "${FILES[@]}"; do
   fi
   GOT=$(sha256sum "$TMP" | cut -d' ' -f1); rm -f "$TMP"
   if [ "$GOT" != "$SRC_SUM" ]; then
-    echo "NIEZGODNY!"
+    echo "MISMATCH!"
     sed -i "/^$NAME /d" "$MAN" 2>/dev/null
     exit 1
   fi
@@ -107,6 +107,6 @@ for entry in "${FILES[@]}"; do
 done
 
 echo
-echo "=== wgranych plikow: $CHANGED ==="
+echo "=== files written: $CHANGED ==="
 mdir -i "$SPEC" ::/Android
 echo "DONE."

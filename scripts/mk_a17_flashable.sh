@@ -80,7 +80,7 @@ for f in "$KOBJ/Image|Image" \
 done
 
 echo "=== 5/7 firmware and boot entries"
-"$HERE/add_a17_firmware.sh" "$IMG" 2>&1 | grep -E "audio:|video:|qup:|regulatory:|WARNING|UWAGA" | sed 's/^/    /' || true
+"$HERE/add_a17_firmware.sh" "$IMG" 2>&1 | grep -E "audio:|video:|qup:|regulatory:|WARNING" | sed 's/^/    /' || true
 for e in a17 a17-udbg a17-quiet; do
   [ -f "$ENTRIES/$e.conf" ] || { echo "STOP: missing $ENTRIES/$e.conf"; exit 1; }
   bad=$(awk '($1=="linux"||$1=="initrd"||$1=="devicetree") && NF!=2' "$ENTRIES/$e.conf")

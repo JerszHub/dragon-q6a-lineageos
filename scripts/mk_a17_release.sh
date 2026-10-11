@@ -2,12 +2,13 @@
 # mk_a17_release.sh — builds a RELEASE image for the Dragon Q6A (LineageOS 24).
 #
 # Difference from mk_a17_sdimg.sh: that one builds a BRING-UP image (userdata=tmpfs,
-# mount_firmware=disable, konsola na UART, timeout 5, wpisy diagnostyczne).
+# mount_firmware=disable, console on the UART, timeout 5, diagnostic entries).
 # This one builds an image meant to simply work:
 #   - `a17` as the default entry: mount_userdata=std_parts, mount_firmware=only_android_dir,
 #     pd_ignore_unused clk_ignore_unused, console=tty0 (NO UART — see below), timeout 0
-#   - firmware na ESP: GPU (a660*), regulatory.db (-27 s bootu), adsp.mbn + topologia LPASS (audio)
-#   - wpisy diagnostyczne a17-udbg (std_parts + logi UART) i a17-quiet (quiet loglevel=3)
+#   - firmware on the ESP: GPU (a660*), regulatory.db (-27 s of boot), adsp.mbn + LPASS topology
+#     (audio), venus.mbn (video codecs), qupv3fw.elf (I2C/SPI)
+#   - diagnostic entries a17-udbg (std_parts + UART logs) and a17-quiet (quiet loglevel=3)
 #
 # ⚠️ Do NOT remove `console=tty0`. With no `console=` at all the kernel enables ttyMSM0
 #    (the UART), which is blocking at ~11 KB/s, and boot grows from ~10 s to ~53 s. Measured.
@@ -28,13 +29,13 @@ echo "=== 1/5 building the base image"
 cp "$IMG_SRC" "$OUT"
 SPEC="$OUT@@1048576"
 
-echo "=== 2/5 staging firmware (GPU + regulatory + audio)"
-"$HERE/add_a17_firmware.sh" "$OUT" 2>&1 | grep -E "audio:|video:|qup:|regulatory:|WARNING|UWAGA" | sed 's/^/    /' || true
+echo "=== 2/5 staging firmware (GPU + regulatory + audio + video + QUP)"
+"$HERE/add_a17_firmware.sh" "$OUT" 2>&1 | grep -E "audio:|video:|qup:|regulatory:|WARNING" | sed 's/^/    /' || true
 
 echo "=== 3/5 installing the release boot entries"
 for e in a17 a17-udbg a17-quiet; do
   [ -f "$ENTRIES/$e.conf" ] || { echo "STOP: $ENTRIES/$e.conf not found"; exit 1; }
-  # kontrola: sciezki musza miec po 2 pola (patrz wpadka z 2026-09-24)
+  # check: path lines must have exactly 2 fields (see the 2026-09-24 mistake)
   bad=$(awk '($1=="linux"||$1=="initrd"||$1=="devicetree") && NF!=2' "$ENTRIES/$e.conf")
   [ -z "$bad" ] || { echo "STOP: malformed entry $e: $bad"; exit 1; }
   mcopy -o -i "$SPEC" "$ENTRIES/$e.conf" ::/loader/entries/$e.conf

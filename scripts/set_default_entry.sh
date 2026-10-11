@@ -3,10 +3,10 @@
 # set_default_entry.sh — sets the default boot entry in loader.conf on the ESP.
 #
 # WHY: the systemd-boot menu needs a KEYBOARD, and the board has only a touchscreen.
-# Jedyny sposob wyboru wpisu to ustawienie go jako domyslnego przed bootem.
+# The only way to pick an entry is to make it the default before booting.
 #
 # Usage: sudo set_default_entry.sh <entry-name> [/dev/sdX | image.img] [timeout]
-#   np.   sudo ~/q6a/set_default_entry.sh a17-fix
+#   e.g.  sudo ~/q6a/set_default_entry.sh a17-fix
 set -euo pipefail
 
 ENTRY="${1:-}"
@@ -38,6 +38,6 @@ mcopy -o -i "$SPEC" "$TMP/loader.conf" ::/loader/loader.conf
 sync
 
 echo
-echo "=== loader.conf na nosniku ==="
+echo "=== loader.conf on the medium ==="
 mtype -i "$SPEC" ::/loader/loader.conf | sed 's/^/  /'
 echo "DONE — the board will boot '$ENTRY' with no keyboard involved."
