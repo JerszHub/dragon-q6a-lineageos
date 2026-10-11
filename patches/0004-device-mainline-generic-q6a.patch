@@ -1,5 +1,5 @@
 diff --git a/Generic_arm64/BoardConfig.mk b/Generic_arm64/BoardConfig.mk
-index 14e92ba..1294c67 100644
+index 14e92ba..72f7ef9 100644
 --- a/Generic_arm64/BoardConfig.mk
 +++ b/Generic_arm64/BoardConfig.mk
 @@ -50,3 +50,48 @@ TARGET_KERNEL_CONFIG_EXT := \
@@ -8,19 +8,19 @@ index 14e92ba..1294c67 100644
  endif
 +
 +# Q6A 2026-09-20: a WHITELIST instead of a blacklist. The board has an Adreno 643, so the
-+# potrzebny sterownik to freedreno (gallium + Turnip w Vulkanie). Drzewo urzadzenia
-+# wlacza komplet sterownikow ARM i desktopowych, a kazdy dokladany po jednym do
-+# filtra kosztowal nas osobny nieudany build:
++# only driver it needs is freedreno (gallium, plus Turnip for Vulkan). The device tree
++# enables every ARM and desktop driver, and each one we filtered out separately cost
++# a failed build:
 +#
 +#   asahi, imagination  -> no MESA_VK_LIB_SUFFIX_* mapping in external/mesa
 +#                          (Android.mk knows only 8 names) -> two modules both named "vulkan."
 +#                          -> base_rules.mk:320 "already defined"
-+#                          Na Gerricie leza DWIE PORZUCONE zmiany dokladajace ta strone.
-+#   radeonsi, amd       -> podnosza wymaganie libdrm do 2.4.133 "for AMDGPU"
-+#                          (mesa e0b5724e85d), a external/libdrm ma 2.4.124
++#                          Gerrit has TWO ABANDONED changes that add this mapping.
++#   radeonsi, amd       -> raise the libdrm requirement to 2.4.133 "for AMDGPU"
++#                          (mesa e0b5724e85d), but external/libdrm has 2.4.124
 +#                          -> meson.build:1921 "Invalid version"
 +#   etnaviv             -> needs the Python module pycparser >= 2.20, which is not present
-+#                          ani w systemie, ani w prebuilts/mesa-build-dep
++#                          on the host or in prebuilts/mesa-build-dep
 +#                          -> src/etnaviv/hwdb/meson.build:15
 +#
 +# So rather than adding more filter-out lines, both lists are cut down to freedreno.
@@ -99,11 +99,28 @@ index 6fc8a81..d4447a4 100644
 +    sub_dir: "overlay-system_ext-etc-init",
 +    vendor: true,
 +}
+diff --git a/configs/init/init.generic.rc b/configs/init/init.generic.rc
+index 94971a3..a0757af 100644
+--- a/configs/init/init.generic.rc
++++ b/configs/init/init.generic.rc
+@@ -73,6 +73,12 @@ service vendor.light-default /vendor/bin/hw/android.hardware.light-service.linea
+     shutdown critical
+     override
+ 
++# Memory
++# Games such as Genshin Impact use more than the default 65530 mappings per process
++# and crash once they hit the limit. Desktop Linux distributions use the same value.
++on early-init
++    write /proc/sys/vm/max_map_count 1048576
++
+ # Kernel modules
+ on early-init
+     exec u:r:vendor_modprobe:s0 -- /vendor/bin/modprobe -d /vendor/lib/modules zram.ko
 diff --git a/configs/properties/vendor.prop b/configs/properties/vendor.prop
-index d301860..e14caf1 100644
+index d301860..a8a5bf6 100644
 --- a/configs/properties/vendor.prop
 +++ b/configs/properties/vendor.prop
-@@ -29,3 +29,41 @@ ro.boot.wifi_mac_prefix=5554
+@@ -29,3 +29,46 @@ ro.boot.wifi_mac_prefix=5554
  
  # ZRAM
  persist.sys.zram_enabled=1
@@ -144,7 +161,12 @@ index d301860..e14caf1 100644
 +# every lookup with a buffer larger than the cached value, which is what Mesa always does,
 +# is treated as a miss.
 +ro.egl.blobcache.multifile=true
-+ro.egl.blobcache.multifile_limit=134217728
++# Genshin Impact's shader warm-up alone writes about 70,000 entries and 550 MiB, so the default
++# caps (32 MiB, 4096 entries) would evict most of it. On overflow the cache drops half its
++# content, so keep the caps well above that. These are ceilings, not reservations.
++# The byte limit is parsed as uint32_t: 4294967295 is the largest value that is not ignored.
++ro.egl.blobcache.multifile_limit=4294967295
++ro.egl.blobcache.multifile_entry_limit=262144
 diff --git a/configs/scripts/Android.bp b/configs/scripts/Android.bp
 index b02da95..b721ab8 100644
 --- a/configs/scripts/Android.bp

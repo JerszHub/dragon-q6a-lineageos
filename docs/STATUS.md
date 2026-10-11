@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-06.
+Last updated: 2026-10-11.
 
 ## Verified on hardware
 
@@ -9,6 +9,7 @@ Last updated: 2026-10-06.
 | Boot to UI | works | `sys.boot_completed=1`, 134 APKs, Launcher3QuickStep, setup wizard |
 | Display | works | HDMI 1024×600@60, DP link HBR2 5.4 Gb/s at voltage level 1 |
 | GPU | works | Mesa freedreno/Turnip, `drm_hwcomposer`, `card0-HDMI-A-1` |
+| Games (Genshin Impact) | playable | One minute of play on 2026-10-11, with a warm shader cache: 79% of frames at 16 ms, 19% at 33 ms, 9 frames of 100 ms or more, none of 300 ms or more; shader-compile waits 139 ms in total. CPU-bound, not GPU-bound |
 | Ethernet | works | RTL8168h via `r8169`, adb over TCP |
 | Wi-Fi | works | AIC8800D80 on USB, associated with a 5 GHz network |
 | Bluetooth | works | paired with a phone, photo transferred over OBEX |
@@ -17,7 +18,7 @@ Last updated: 2026-10-06.
 | Audio over HDMI | declared, unverified | `displayport-dai-link` in DT, `hdmi-audio-codec` registers, no routing yet |
 | Bluetooth audio | untested | A2DP profile active in the framework |
 | NVMe | untested | `nvme.ko` is in the image |
-| HW video codecs | kernel works, Android not wired | Venus probes with `vpu20_p1.mbn` from upstream linux-firmware (`qcom-venus-encoder`, `qcom-venus-decoder`); needs the V4L2 Codec2 HAL |
+| HW video codecs | kernel works, Android needs integration | Venus probes at boot (`qcom-venus-encoder`, `qcom-venus-decoder`) and the V4L2 Codec2 HAL runs, but it declares a component only when `ro.vendor.v4l2_codec2.{encoder,decoder}.supported.<codec>` is set. With those set at runtime, Android lists `c2.v4l2.avc.encoder` and the AVC/VP8/VP9 decoders, and encoding then fails: Venus rejects the `NM12` input format and the DMA-buf queue (`VIDIOC_QBUF`). The properties are therefore not shipped. Decoding is untested: the image has no video player |
 | I²C / SPI | fixable | `qcom/qcm6490/qupv3fw.elf` from upstream linux-firmware binds all three I²C and both SPI controllers (tested 2026-10-06 by loading it at runtime) |
 | USB3 SuperSpeed | broken by design | PHY forced to DP-only, see README |
 | MIPI-DSI | not started | |

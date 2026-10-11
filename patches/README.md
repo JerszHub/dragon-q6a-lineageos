@@ -6,9 +6,8 @@ from the root of the repository named below.
 | Patch | Repository | Purpose |
 |---|---|---|
 | `0001-kernel-dts-q6a-display-dp.patch` | `kernel/mainline/android-mainline` | Enables the display: MDSS, DP, QMP PHY and USB nodes, the RA620 bridge and the HDMI connector, plus the lane-orientation fix described in the README. |
-| `0002-lineage-sdk-a17-settings-constants.patch` | `lineage-sdk` | `lineage-sdk` does not compile under Android 17: several `Settings` constants moved to `ConnectivitySettingsManager`. |
-| `0003-zstd-visibility-generic-init.patch` | `external/zstd` | `generic_init` has `libzstd` in `static_libs` but nothing grants it visibility. A package outside `vendor/` may only name `//vendor:__subpackages__`, not a specific subpackage — see `build/soong/android/visibility.go:363` and `build/soong/README.md:349`. |
-| `0004-device-mainline-generic-q6a.patch` | `device/mainline/generic` | Board wiring: Mesa driver whitelist, Wi-Fi/BT kernel modules and firmware, the `usb.gadget` APEX guard, and the init service that loads the Wi-Fi/BT modules. Also: the V4L2 Codec2 HAL for hardware video codecs, the multifile EGL blob cache, the GL renderer override that Genshin Impact needs (Mesa names this GPU `FD643`, which the game does not recognise, and its 3D scenes render corrupted), and `q6a_debug_net` only when the build sets `Q6A_DEBUG_NET=true`. |
+| `0003-zstd-visibility-generic-init.patch` | `external/zstd` | `generic_init` has `libzstd` in `static_libs` but nothing grants it visibility. A package outside `vendor/` may only name `//vendor:__subpackages__`, not a specific subpackage — see `build/soong/android/visibility.go:363` and `build/soong/README.md:349`. **To be dropped** once `vendor/mainline` is synced: upstream guards the `libzstd` dependency in `generic_init` instead (Gerrit 505913), and the visibility approach was abandoned (496520). |
+| `0004-device-mainline-generic-q6a.patch` | `device/mainline/generic` | Board wiring: Mesa driver whitelist, Wi-Fi/BT kernel modules and firmware, the `usb.gadget` APEX guard, and the init service that loads the Wi-Fi/BT modules. Also: the V4L2 Codec2 HAL for hardware video codecs, the multifile EGL blob cache with limits sized for games (4 GiB and 262,144 entries; one game's shader warm-up alone writes about 70,000 entries and 550 MiB), `vm.max_map_count` raised to 1048576 (Genshin Impact passes the default 65530 mappings and crashes), the GL renderer override that Genshin Impact needs (Mesa names this GPU `FD643`, which the game does not recognise, and its 3D scenes render corrupted), and `q6a_debug_net` only when the build sets `Q6A_DEBUG_NET=true`. |
 | `0005-prebuilts-misc-disable-protobuf-vendorcompat.patch` | `prebuilts/misc` | `libprotobuf-cpp-{full,lite}-21.12-vendorcompat` declare `srcs` only under `android_arm` (32-bit) and none for arm64, which breaks an arm64-only build. From AOSP, not LineageOS. |
 | `0006-soong-gomemlimit.patch` | `build/soong` | Lets `SOONG_BUILD_GOMEMLIMIT` reach `soong_build`, which is started with `env -i`. Only needed on memory-constrained hosts. |
 | `0007-generic_init-canonical-mount-point.patch` | `vendor/mainline` | fs_mgr refuses a mount point that is not canonical, and on a system-as-root image `/product` and `/system_ext` are symlinks into `/system` — so the `product` and `system_ext` images that `generic_init` claims to support can never mount. Resolving the path at mount time fixes it. No Gerrit report. |
@@ -21,6 +20,9 @@ The untracked files that belong with patch 0004 are shipped as real files under
 
 ## Not included
 
+- **`lineage-sdk` build fix for Android 17** (formerly 0002) — we believed several `Settings`
+  constants had moved to `ConnectivitySettingsManager`, but `LineageSettingsProvider` builds
+  without the patch on the current tree (verified 2026-10-11).
 - **Mesa `_mesa3d` suffix for `vulkan.lvp`** — merged upstream as
   [#503205](https://review.lineageos.org/c/503205); `external/mesa` on `lineage-24.0`
   already carries it.
@@ -34,4 +36,7 @@ The untracked files that belong with patch 0004 are shipped as real files under
 Not applied by any script and not part of any image: changes kept for reference.
 
 - `kernel-dts-gpu-opp-overclock.patch` exposes 840/900 MHz GPU points. The board did not boot with it, games are not GPU-bound, and LDSR requires clocks within the SoC vendor's binning.
-- `mesa-freedreno-glthread-default.patch` turns on glthread by default in freedreno. Its effect was never measured.
+- `mesa-freedreno-glthread-default.patch` turns on glthread by default in freedreno. **Not applied by
+  the scripts, but present in the working tree since 2026-09-29**, so every image built since then
+  carries it, including all the Genshin Impact measurements. It was never measured against a build
+  without it.
