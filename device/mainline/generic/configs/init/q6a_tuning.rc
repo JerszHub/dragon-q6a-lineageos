@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+# Q6A: performance tuning. See q6a_perf.sh for what each setting does and why.
+
+on post-fs-data
+    # Mesa needs this to exist before any GPU client starts; see vendor.prop.
+    mkdir /data/vendor/mesa_shader_cache 0777 root root
+
+on property:sys.boot_completed=1
+    start q6a_tuning
+
+service q6a_tuning /system/bin/sh /vendor/bin/q6a_perf.sh max
+    class late_start
+    user root
+    group root
+    oneshot
+    disabled
+    seclabel u:r:su:s0

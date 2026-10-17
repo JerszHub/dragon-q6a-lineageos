@@ -1,0 +1,17 @@
+# Patches applied by scripts/setup_tree.sh, in this order.
+# <patch file>  <repository path in the source tree>
+0001-kernel-dts-q6a-display-dp.patch                     kernel/mainline/android-mainline
+0003-zstd-visibility-generic-init.patch                  external/zstd
+0004-device-mainline-generic-q6a.patch                   device/mainline/generic
+0005-prebuilts-misc-disable-protobuf-vendorcompat.patch  prebuilts/misc
+0006-soong-gomemlimit.patch                              build/soong
+0007-generic_init-canonical-mount-point.patch            vendor/mainline
+0008-frameworks-native-egl-multifile-get-value-size.patch frameworks/native
+0009-frameworks-native-egl-multifile-dir-suffix.patch    frameworks/native
+0010-mesa-freedreno-a6xx-texture-state-index.patch       external/mesa
+0011-v4l2_codec2-encoder-input-plane-length.patch        external/v4l2_codec2
+0012-device-mainline-common-v4l2-hevc-decoder.patch      device/mainline/common
+0013-v4l2_codec2-decoder-input-size-zero.patch           external/v4l2_codec2
+0014-v4l2_codec2-encoder-key-frame-fallback.patch        external/v4l2_codec2
+0015-vendor-lineage-kernel-kconfig-ext-prefix.patch      vendor/lineage
+0016-kernel-dpu-single-mixer-when-dspp-short.patch          kernel/mainline/android-mainline

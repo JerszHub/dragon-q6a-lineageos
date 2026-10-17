@@ -21,7 +21,10 @@
 # Usage: sudo add_a17_firmware.sh [/dev/sdX | image.img]
 set -euo pipefail
 
-FW_SRC=$HOME/q6a/glodroid/device/glodroid/dragon_q6a/firmware
+# All Qualcomm firmware comes from upstream linux-firmware, at its upstream paths, fetched and
+# checksummed by fetch_firmware.sh.
+LFW_SRC=${LINUX_FW_SRC:-$HOME/q6a/linux-firmware-q6a}
+"$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/fetch_firmware.sh" "$LFW_SRC" >/dev/null || exit 1
 TARGET="${1:-}"
 
 if [ -z "$TARGET" ]; then
@@ -36,9 +39,6 @@ OFF=$(sgdisk -i 1 "$TARGET" 2>/dev/null | awk '/First sector/{print $3}')
 SPEC="${TARGET}@@$((OFF*512))"
 echo "=== target: $TARGET   ESP: $SPEC ==="
 
-for f in a660_gmu.bin a660_sqe.fw a660_zap.mbn; do
-  [ -f "$FW_SRC/$f" ] || { echo "STOP: missing $FW_SRC/$f"; exit 1; }
-done
 
 echo "==> creating firmware directories"
 for d in ::/Android/firmware ::/Android/firmware/qcom ::/Android/firmware/qcom/qcs6490; do
@@ -46,9 +46,10 @@ for d in ::/Android/firmware ::/Android/firmware/qcom ::/Android/firmware/qcom/q
 done
 
 echo "==> copying blobs"
-mcopy -o -i "$SPEC" "$FW_SRC/a660_sqe.fw"  ::/Android/firmware/qcom/a660_sqe.fw
-mcopy -o -i "$SPEC" "$FW_SRC/a660_gmu.bin" ::/Android/firmware/qcom/a660_gmu.bin
-mcopy -o -i "$SPEC" "$FW_SRC/a660_zap.mbn" ::/Android/firmware/qcom/qcs6490/a660_zap.mbn
+# linux-firmware keeps the zap shader under qcm6490/ and links qcs6490/a660_zap.mbn to it.
+mcopy -o -i "$SPEC" "$LFW_SRC/qcom/a660_sqe.fw"  ::/Android/firmware/qcom/a660_sqe.fw
+mcopy -o -i "$SPEC" "$LFW_SRC/qcom/a660_gmu.bin" ::/Android/firmware/qcom/a660_gmu.bin
+mcopy -o -i "$SPEC" "$LFW_SRC/qcom/qcm6490/a660_zap.mbn" ::/Android/firmware/qcom/qcs6490/a660_zap.mbn
 
 # regulatory.db — A LARGE BOOT-TIME SAVING (measured 2026-09-24: 27 seconds)
 # cfg80211.ko loads at about 2.4 s, that is BEFORE /vendor is mounted. It looks for
@@ -71,7 +72,7 @@ mcopy -o -i "$SPEC" "$FW_SRC/a660_zap.mbn" ::/Android/firmware/qcom/qcs6490/a660
 # MIND THE PATHS - THEY DIFFER:
 #   adsp.mbn -> qcom/qcs6490/radxa/dragon-q6a/   (from the remoteproc node's `firmware-name`)
 #   tplg.bin -> qcom/qcs6490/                    (named after the card's `model`, NO subdirectory)
-AUD_SRC=${AUDIO_FW_SRC:-$HOME/q6a/glodroid/device/glodroid/dragon_q6a/firmware/qcom/qcs6490/radxa/dragon-q6a}
+AUD_SRC=$LFW_SRC/qcom/qcs6490/radxa/dragon-q6a
 for d in ::/Android/firmware/qcom/qcs6490/radxa ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a; do
   mmd -i "$SPEC" "$d" 2>/dev/null || true
 done
@@ -88,15 +89,14 @@ else
   echo "    WARNING: topology missing — the ALSA card will not instantiate"
 fi
 
-# Video (Venus) and QUP serial-engine firmware, both from upstream linux-firmware.
-# Without venus.mbn the video codec fails to probe; without qupv3fw.elf no I2C or SPI bus comes up.
-LFW_SRC=${LINUX_FW_SRC:-$HOME/q6a/linux-firmware-q6a}
-for d in ::/Android/firmware/qcom/vpu-2.0 ::/Android/firmware/qcom/qcm6490; do
+# Video (iris) and QUP serial-engine firmware. Without vpu20_p1.mbn the video codec fails to
+# probe; without qupv3fw.elf no I2C or SPI bus comes up.
+for d in ::/Android/firmware/qcom/vpu ::/Android/firmware/qcom/qcm6490; do
   mmd -i "$SPEC" "$d" 2>/dev/null || true
 done
 if [ -f "$LFW_SRC/qcom/vpu/vpu20_p1.mbn" ]; then
-  mcopy -o -i "$SPEC" "$LFW_SRC/qcom/vpu/vpu20_p1.mbn" ::/Android/firmware/qcom/vpu-2.0/venus.mbn
-  echo "    video: venus.mbn"
+  mcopy -o -i "$SPEC" "$LFW_SRC/qcom/vpu/vpu20_p1.mbn" ::/Android/firmware/qcom/vpu/vpu20_p1.mbn
+  echo "    video: vpu20_p1.mbn"
 else
   echo "    WARNING: $LFW_SRC/qcom/vpu/vpu20_p1.mbn missing - no hardware video codecs"
 fi

@@ -23,15 +23,19 @@
 #    the quota format is a module, absent during first-stage boot, and mounting /data then
 #    fails fatally — a boot loop. Confirmed on hardware.
 #
-# Usage: ~/q6a/mk_a17_flashable.sh [version]        (default: v2)
+# Needs: sgdisk, mtools, e2fsprogs and curl (for fetch_firmware.sh). No root.
+# Usage: scripts/mk_a17_flashable.sh [version]        (default: v2)
+#        Q6A_IMAGE_DIR sets where the image is written (default: ~/q6a).
 set -euo pipefail
 HERE=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
 VER="${1:-v2}"
 OUT_DIR=${LINEAGE_TREE:-${LINEAGE_TREE:-$HOME/q6a/lineage}}/out/target/product/Generic_arm64
 KOBJ=$OUT_DIR/obj/KERNEL_OBJ/arch/arm64/boot
-V7=$HOME/q6a/dragon_q6a_universal-v7.img
-IMG=$HOME/q6a/dragon_q6a_lineage24_${VER}.img
-ENTRIES=${RELEASE_ENTRIES:-/tmp/rel/entries}
+REPO_DIR=$(cd "$HERE/.." && pwd)
+# embloader 0.4 with the BCB recovery patch, see prebuilt/embloader/README.md.
+EFI=$REPO_DIR/prebuilt/embloader/BOOTAA64.EFI
+IMG=${Q6A_IMAGE_DIR:-$HOME/q6a}/dragon_q6a_lineage24_${VER}.img
+ENTRIES=${RELEASE_ENTRIES:-$REPO_DIR/loader-entries}
 
 ESP_MB=4096; META_MB=32; DATA_MB=512
 ESP_START=2048
@@ -41,7 +45,7 @@ DATA_START=$(( META_END + 1 )); DATA_END=$(( DATA_START + DATA_MB*2048 - 1 ))
 TOTAL_SECT=$(( DATA_END + 34 + 1 ))
 
 echo "=== 1/7 creating image ($(( TOTAL_SECT*512/1024/1024 )) MB)"
-rm -f "$IMG"; truncate -s $(( TOTAL_SECT*512 )) "$IMG"
+mkdir -p "$(dirname "$IMG")"; rm -f "$IMG"; truncate -s $(( TOTAL_SECT*512 )) "$IMG"
 sgdisk -og "$IMG" >/dev/null
 sgdisk -n "1:${ESP_START}:${ESP_END}"   -t 1:EF00 -c 1:"ESP"      "$IMG" >/dev/null
 sgdisk -n "2:${META_START}:${META_END}" -t 2:8300 -c 2:"metadata" "$IMG" >/dev/null
@@ -63,8 +67,8 @@ echo "=== 3/7 bootloader"
 SPEC="$IMG@@$((ESP_START*512))"
 mmd -i "$SPEC" ::/EFI ::/EFI/BOOT ::/loader ::/loader/entries ::/Android
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-mcopy -i "$V7"@@1048576 ::/EFI/BOOT/BOOTAA64.EFI "$TMP/BOOTAA64.EFI"
-mcopy -i "$SPEC" "$TMP/BOOTAA64.EFI" ::/EFI/BOOT/BOOTAA64.EFI
+[ -f "$EFI" ] || { echo "STOP: missing $EFI"; exit 1; }
+mcopy -i "$SPEC" "$EFI" ::/EFI/BOOT/BOOTAA64.EFI
 
 echo "=== 4/7 system images"
 for f in "$KOBJ/Image|Image" \
@@ -112,7 +116,7 @@ for f in ::/Android/Image ::/Android/qcs6490-radxa-dragon-q6a.dtb ::/Android/sys
          ::/Android/firmware/regulatory.db \
          ::/Android/firmware/qcom/qcs6490/QCS6490-Radxa-Dragon-Q6A-tplg.bin \
          ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a/adsp.mbn \
-         ::/Android/firmware/qcom/vpu-2.0/venus.mbn ::/Android/firmware/qcom/qcm6490/qupv3fw.elf \
+         ::/Android/firmware/qcom/vpu/vpu20_p1.mbn ::/Android/firmware/qcom/qcm6490/qupv3fw.elf \
          ::/loader/loader.conf ::/loader/entries/a17.conf ::/EFI/BOOT/BOOTAA64.EFI; do
   mtype -i "$SPEC" "$f" >/dev/null 2>&1 && echo "    OK  $f" || { echo "    MISSING $f"; exit 1; }
 done

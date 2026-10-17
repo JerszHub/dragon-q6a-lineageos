@@ -7,7 +7,7 @@
 #   - `a17` as the default entry: mount_userdata=std_parts, mount_firmware=only_android_dir,
 #     pd_ignore_unused clk_ignore_unused, console=tty0 (NO UART — see below), timeout 0
 #   - firmware on the ESP: GPU (a660*), regulatory.db (-27 s of boot), adsp.mbn + LPASS topology
-#     (audio), venus.mbn (video codecs), qupv3fw.elf (I2C/SPI)
+#     (audio), vpu20_p1.mbn (video codecs), qupv3fw.elf (I2C/SPI)
 #   - diagnostic entries a17-udbg (std_parts + UART logs) and a17-quiet (quiet loglevel=3)
 #
 # ⚠️ Do NOT remove `console=tty0`. With no `console=` at all the kernel enables ttyMSM0
@@ -21,7 +21,7 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 VER="${1:-v1}"
 IMG_SRC=$HERE/dragon_q6a_a17_test.img
 OUT=$HERE/dragon_q6a_lineage24_${VER}.img
-ENTRIES=${RELEASE_ENTRIES:-/tmp/rel/entries}
+ENTRIES=${RELEASE_ENTRIES:-$HERE/../loader-entries}
 
 echo "=== 1/5 building the base image"
 "$HERE/mk_a17_sdimg.sh" >/dev/null
@@ -58,7 +58,7 @@ for f in ::/Android/Image ::/Android/qcs6490-radxa-dragon-q6a.dtb ::/Android/sys
          ::/Android/firmware/regulatory.db \
          ::/Android/firmware/qcom/qcs6490/QCS6490-Radxa-Dragon-Q6A-tplg.bin \
          ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a/adsp.mbn \
-         ::/Android/firmware/qcom/vpu-2.0/venus.mbn ::/Android/firmware/qcom/qcm6490/qupv3fw.elf \
+         ::/Android/firmware/qcom/vpu/vpu20_p1.mbn ::/Android/firmware/qcom/qcm6490/qupv3fw.elf \
          ::/loader/loader.conf ::/loader/entries/a17.conf ::/EFI/BOOT/BOOTAA64.EFI; do
   mtype -i "$SPEC" "$f" >/dev/null 2>&1 && echo "    OK  $f" || { echo "    MISSING $f"; exit 1; }
 done

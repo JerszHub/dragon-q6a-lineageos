@@ -5,6 +5,32 @@
 Built and tested on WSL2 (Ubuntu) with 16 cores and 26 GB of RAM allocated to WSL out of
 32 GB physical. Roughly 400 GB of disk is needed for the source tree plus build output.
 
+## Quick start
+
+```bash
+git clone https://github.com/JerszHub/dragon-q6a-lineageos
+dragon-q6a-lineageos/scripts/setup_tree.sh ~/q6a/lineage
+dragon-q6a-lineageos/scripts/build_all.sh  ~/q6a/lineage
+```
+
+`setup_tree.sh` syncs every project at the commit our images were built from
+(`manifests/q6a-pinned.xml`), fetches the kernel, applies `patches/series` and copies the
+device files. `build_all.sh` builds Android and the kernel, rebuilds the AIC8800 modules
+for that kernel, and writes `~/q6a/dragon_q6a_lineage24_local.img`, which is written to a
+card or SSD like a release image. Neither script needs root.
+
+Host packages, on Ubuntu: `repo git git-lfs curl gdisk mtools e2fsprogs` plus the usual
+[AOSP build dependencies](https://source.android.com/docs/setup/start/requirements).
+
+The pinned manifest only applies to the sync it is passed to: a plain `repo sync` later
+moves every project to the tip of `lineage-24.0`, and the patches may then stop applying.
+
+The image differs from ours in two expected ways: `patches/experimental/` is not applied,
+and network adb (`Q6A_DEBUG_NET`, fixed address `192.168.137.50`) is on, as in every
+development build.
+
+The sections below explain what the scripts do.
+
 ## Getting the source
 
 ```bash
@@ -36,18 +62,37 @@ Why these manifests are needed:
 ⚠️ **Sync `vendor/mainline` and `device/mainline/generic` together.** See the upstream
 note at the end of [STATUS.md](STATUS.md).
 
+## Kernel source
+
+The kernel is not part of any manifest. Fetch Android's common kernel into the path that
+`device/radxa/dragon_q6a/kernel/board.mk` points at, at the tested commit. A shallow fetch
+of that one commit is enough:
+
+```bash
+K=<tree>/kernel/mainline/android-mainline
+git init $K && git -C $K remote add origin https://android.googlesource.com/kernel/common
+git -C $K fetch --depth 1 origin 1e8ffda06e4c0b6304831d603520101b7840137d
+git -C $K checkout --detach FETCH_HEAD
+```
+
+`1e8ffda06e4c` is `android-mainline` of 2026-10-16 (Linux 7.2 plus the 7.3 merge window). It
+is needed for the `iris` video driver: the earlier 7.1-based tree lacked, among other fixes,
+the encoder's key frame request. It booted on hardware on 2026-10-17 (display at 1920x1080 with
+patch 0016, Ethernet, Wi-Fi and Bluetooth modules, both video nodes); `lineage24-v2` was built
+from the 7.1 tree.
+
 ## Applying the patches
+
+`patches/series` lists each patch with the repository it applies to, in order:
 
 ```bash
 cd <tree>
-for p in <this repo>/patches/*.patch; do
-    # each patch header names the repository it applies to
-    ...
+grep -v '^#' <this repo>/patches/series | while read -r p dir; do
+    git -C "$dir" apply <this repo>/patches/$p
 done
 ```
 
-See [../patches/README.md](../patches/README.md) — it lists the target repository and the
-reason for every patch.
+See [../patches/README.md](../patches/README.md) for the reason behind every patch.
 
 Then copy the device tree and the generic-tree additions:
 

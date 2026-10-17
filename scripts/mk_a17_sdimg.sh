@@ -7,7 +7,7 @@ set -e
 OUT=${LINEAGE_TREE:-$HOME/q6a/lineage}/out/target/product/Generic_arm64
 KOBJ=$OUT/obj/KERNEL_OBJ/arch/arm64/boot
 IMG=$HOME/q6a/dragon_q6a_a17_test.img
-V7=$HOME/q6a/dragon_q6a_universal-v7.img
+EFI=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/prebuilt/embloader/BOOTAA64.EFI
 SIZE_MB=3072
 OFF=1048576          # 2048 sectors * 512
 
@@ -38,11 +38,9 @@ FATSECT=$(minfo -i "$IMG"@@$((PSTART*512)) | awk '/big size/{print $3}')
 echo "    FAT: $FATSECT sectors"
 [ "$FATSECT" -le "$PSECT" ] || { echo "STOP: FAT ($FATSECT) larger than the partition ($PSECT)"; exit 1; }
 
-echo "=== 4/6 bootloader from v7 (embloader 0.4 + BCB, proven on this board)"
+echo "=== 4/6 bootloader (embloader 0.4 + BCB, see prebuilt/embloader/README.md)"
 mmd -i "$IMG"@@$OFF ::/EFI ::/EFI/BOOT ::/loader ::/loader/entries ::/Android
-mcopy -i "$V7"@@$OFF ::/EFI/BOOT/BOOTAA64.EFI /tmp/BOOTAA64.EFI
-mcopy -i "$IMG"@@$OFF /tmp/BOOTAA64.EFI ::/EFI/BOOT/BOOTAA64.EFI
-rm -f /tmp/BOOTAA64.EFI
+mcopy -i "$IMG"@@$OFF "$EFI" ::/EFI/BOOT/BOOTAA64.EFI
 
 echo "=== 5/6 copying kernel, DTB, ramdisk and system images"
 mcopy -i "$IMG"@@$OFF "$KOBJ/Image" ::/Android/Image

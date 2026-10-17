@@ -1,0 +1,181 @@
+diff --git a/embloader/src/main/embloader.inf b/embloader/src/main/embloader.inf
+index 67ebcb1..a3cc900 100644
+--- a/embloader/src/main/embloader.inf
++++ b/embloader/src/main/embloader.inf
+@@ -14,6 +14,8 @@
+   gEfiSimpleFileSystemProtocolGuid
+   gEfiDevicePathToTextProtocolGuid
+   gEfiLoadedImageProtocolGuid
++  gEfiBlockIoProtocolGuid
++  gEfiPartitionInfoProtocolGuid
+ 
+ [LibraryClasses]
+   BaseLib
+@@ -37,6 +39,7 @@
+   newlib
+ 
+ [Sources]
++  bcb.c
+   cmdline.c
+   config.c
+   device.c
+diff --git a/embloader/src/main/main.c b/embloader/src/main/main.c
+index 1981d39..d3507d2 100644
+--- a/embloader/src/main/main.c
++++ b/embloader/src/main/main.c
+@@ -9,6 +9,7 @@
+ #include "embloader.h"
+ #include "bootmenu.h"
+ #include "sdboot.h"
++#include "bcb.h"
+ #include "configfile.h"
+ #include "ticks.h"
+ #include "log.h"
+@@ -60,6 +61,7 @@ EFI_STATUS EFIAPI efi_main(
+ 	gBS->SetWatchdogTimer(0, 0, 0, NULL);
+ 	embloader_load_menu();
+ 	sdboot_boot_load_menu();
++	embloader_check_bcb_recovery();
+ 	EFI_STATUS status = embloader_show_menu();
+ 	log_info("exiting embloader");
+ 	return status;
+diff --git a/embloader/include/bcb.h b/embloader/include/bcb.h
+new file mode 100644
+index 0000000..97a28c1
+--- /dev/null
++++ b/embloader/include/bcb.h
+@@ -0,0 +1,15 @@
++#ifndef EMBLOADER_BCB_H
++#define EMBLOADER_BCB_H
++
++/*
++ * Android Bootloader Control Block (BCB) recovery support.
++ *
++ * Reads the "command" field of the bootloader_message struct from the start of
++ * the GPT partition named "misc". If it equals "boot-recovery" (as written by
++ * Android's stock `reboot recovery` / setprop sys.powerctl=recovery path), the
++ * recovery boot entry is forced as the default with a zero timeout, and the
++ * command is cleared so the selection is one-shot (next boot is normal).
++ */
++extern void embloader_check_bcb_recovery(void);
++
++#endif
+diff --git a/embloader/src/main/bcb.c b/embloader/src/main/bcb.c
+new file mode 100644
+index 0000000..306fe03
+--- /dev/null
++++ b/embloader/src/main/bcb.c
+@@ -0,0 +1,113 @@
++#include <Uefi.h>
++#include <Library/UefiBootServicesTableLib.h>
++#include <Library/BaseLib.h>
++#include <Protocol/BlockIo.h>
++#include <Protocol/PartitionInfo.h>
++#include <string.h>
++#include <stdlib.h>
++#include "embloader.h"
++#include "bootmenu.h"
++#include "bcb.h"
++#include "log.h"
++
++#undef LOG_TAG
++#define LOG_TAG "bcb"
++
++/* Name of the boot entry (sd-boot entry id = filename without .conf) to use for
++ * recovery. The ESP carries /loader/entries/twrp.conf, so the id is "twrp". */
++#define BCB_RECOVERY_ENTRY "twrp"
++
++/* Android bootloader_message: char command[32] at offset 0 of the misc partition. */
++#define BCB_COMMAND_OFFSET 0
++#define BCB_COMMAND_SIZE   32
++#define BCB_RECOVERY_CMD   "boot-recovery"
++
++static bool utf16_equals_ascii(const CHAR16 *u, const char *a) {
++	if (!u || !a) return false;
++	for (; *a; a++, u++)
++		if (*u != (CHAR16)(unsigned char)*a) return false;
++	return *u == 0;
++}
++
++void embloader_check_bcb_recovery(void) {
++	EFI_STATUS status;
++	UINTN count = 0;
++	EFI_HANDLE *handles = NULL;
++
++	status = gBS->LocateHandleBuffer(
++		ByProtocol, &gEfiBlockIoProtocolGuid, NULL, &count, &handles
++	);
++	if (EFI_ERROR(status) || !handles || count == 0) {
++		log_debug("no BlockIo handles, skipping BCB check");
++		return;
++	}
++
++	for (UINTN i = 0; i < count; i++) {
++		EFI_PARTITION_INFO_PROTOCOL *pi = NULL;
++		status = gBS->HandleProtocol(
++			handles[i], &gEfiPartitionInfoProtocolGuid, (void **)&pi
++		);
++		if (EFI_ERROR(status) || !pi) continue;
++		if (pi->Type != PARTITION_TYPE_GPT) continue;
++		if (!utf16_equals_ascii(pi->Info.Gpt.PartitionName, "misc")) continue;
++
++		EFI_BLOCK_IO_PROTOCOL *bio = NULL;
++		status = gBS->HandleProtocol(
++			handles[i], &gEfiBlockIoProtocolGuid, (void **)&bio
++		);
++		if (EFI_ERROR(status) || !bio || !bio->Media) {
++			log_warning("misc partition has no usable BlockIo");
++			break;
++		}
++
++		UINT32 bs = bio->Media->BlockSize;
++		if (bs < BCB_COMMAND_OFFSET + BCB_COMMAND_SIZE) bs = 512;
++		/* Use the firmware pool allocator so the buffer meets the BlockIo
++		 * alignment requirement (Media->IoAlign). */
++		UINT8 *buf = NULL;
++		status = gBS->AllocatePool(EfiBootServicesData, bs, (void **)&buf);
++		if (EFI_ERROR(status) || !buf) { log_error("BCB: out of memory"); break; }
++
++		status = bio->ReadBlocks(bio, bio->Media->MediaId, 0, bs, buf);
++		if (EFI_ERROR(status)) {
++			log_error("BCB: failed to read misc block 0: %d", (int)status);
++			gBS->FreePool(buf);
++			break;
++		}
++
++		char cmd[BCB_COMMAND_SIZE + 1];
++		memcpy(cmd, buf + BCB_COMMAND_OFFSET, BCB_COMMAND_SIZE);
++		cmd[BCB_COMMAND_SIZE] = 0;
++
++		if (strcmp(cmd, BCB_RECOVERY_CMD) == 0) {
++			log_info("BCB command '%s' -> booting recovery entry '%s'",
++				cmd, BCB_RECOVERY_ENTRY);
++			if (g_embloader.menu) {
++				if (g_embloader.menu->default_entry)
++					free(g_embloader.menu->default_entry);
++				g_embloader.menu->default_entry = strdup(BCB_RECOVERY_ENTRY);
++				g_embloader.menu->timeout = 0;
++			}
++			/* One-shot: clear only the command field, preserve the rest of the
++			 * block, and write it back so the next boot is normal. */
++			memset(buf + BCB_COMMAND_OFFSET, 0, BCB_COMMAND_SIZE);
++			status = bio->WriteBlocks(bio, bio->Media->MediaId, 0, bs, buf);
++			if (EFI_ERROR(status))
++				log_warning("BCB: could not clear command (%d) - not one-shot",
++					(int)status);
++			else {
++				if (bio->FlushBlocks) bio->FlushBlocks(bio);
++				log_info("BCB command cleared (recovery is one-shot)");
++			}
++		} else if (cmd[0]) {
++			log_debug("BCB command '%s' - normal boot", cmd);
++		} else {
++			log_debug("BCB command empty - normal boot");
++		}
++
++		gBS->FreePool(buf);
++		break;
++	}
++
++	gBS->FreePool(handles);
++}
