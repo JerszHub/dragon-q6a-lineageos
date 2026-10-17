@@ -1,5 +1,5 @@
 diff --git a/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts b/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
-index bb5a42b038f1..46b373bea9ea 100644
+index 41d60c87f5bd..0773efd2f3e8 100644
 --- a/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
 +++ b/arch/arm64/boot/dts/qcom/qcs6490-radxa-dragon-q6a.dts
 @@ -111,6 +111,50 @@ usb2_3_connector: endpoint {
@@ -53,7 +53,7 @@ index bb5a42b038f1..46b373bea9ea 100644
  	leds {
  		compatible = "gpio-leds";
  
-@@ -521,6 +565,19 @@ &lpass_va_macro {
+@@ -525,6 +569,19 @@ &lpass_va_macro {
  	status = "okay";
  };
  
@@ -71,9 +71,9 @@ index bb5a42b038f1..46b373bea9ea 100644
 +};
 +
  &pcie0 {
- 	perst-gpios = <&tlmm 87 GPIO_ACTIVE_LOW>;
- 	wake-gpios = <&tlmm 89 GPIO_ACTIVE_HIGH>;
-@@ -738,6 +795,27 @@ &sound {
+ 	pinctrl-0 = <&pcie0_clkreq_n>, <&pcie0_reset_n>, <&pcie0_wake_n>;
+ 	pinctrl-names = "default";
+@@ -746,6 +803,27 @@ &sound {
  			"AMIC2", "MIC BIAS2",
  			"TX SWR_ADC1", "ADC2_OUTPUT";
  
@@ -101,7 +101,7 @@ index bb5a42b038f1..46b373bea9ea 100644
  	wcd-playback-dai-link {
  		link-name = "WCD Playback";
  
-@@ -900,6 +978,12 @@ &tlmm {
+@@ -908,6 +986,12 @@ &tlmm {
  		/* GPIO_172 ~ GPIO_174 */
  		"", "", "";
  
@@ -114,7 +114,7 @@ index bb5a42b038f1..46b373bea9ea 100644
  	pcie0_reset_n: pcie0-reset-n-state {
  		pins = "gpio87";
  		function = "gpio";
-@@ -959,6 +1043,54 @@ &uart5 {
+@@ -967,6 +1051,54 @@ &uart5 {
  	status = "okay";
  };
  
@@ -139,7 +139,7 @@ index bb5a42b038f1..46b373bea9ea 100644
 +	/*
 +	 * Q6A has no USB-C receptacle: the QMP combo PHY output is hard-wired to a
 +	 * DP bridge. kodiak.dtsi marks the PHY "orientation-switch", which makes
-+	 * phy-qcom-qmp-combo.c:4896 take the Type-C branch and wait for an orientation
++	 * qmp_combo_probe() take the Type-C branch and wait for an orientation
 +	 * notification that never arrives here. The data-lanes parsing lives in the
 +	 * else branch, so it never runs and the orientation stays at the probe default
 +	 * (NORMAL) - driving DP on lanes {3,2} while this board wires them to {0,1}.
@@ -169,7 +169,7 @@ index bb5a42b038f1..46b373bea9ea 100644
  &usb_2 {
  	dr_mode = "host";
  
-@@ -1020,6 +1152,10 @@ &usb_2_hsphy {
+@@ -1028,6 +1160,10 @@ &usb_2_hsphy {
  	status = "okay";
  };
  

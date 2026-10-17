@@ -1,0 +1,77 @@
+--- a/src/USB/driver_fw/drivers/aic8800/aic8800_fdrv/aic_priv_cmd.c
++++ b/src/USB/driver_fw/drivers/aic8800/aic8800_fdrv/aic_priv_cmd.c
+@@ -276,7 +276,7 @@
+ {
+ 	cmd_rf_settx_t settx_param;
+ 	u8_l set_p = 0;
+-	u8_l lvl_band, lvl_mod, lvl_idx, lvl_pwr = 0;
++	u8_l lvl_band, lvl_mod = 0, lvl_idx, lvl_pwr = 0;  /* Q6A: lvl_mod was left unset for modes 1, 3 and >= 6 */
+ 	u8_l buf[10];
+ #ifdef CONFIG_POWER_LIMIT
+ 	int8_t max_pwr;
+--- a/src/USB/driver_fw/drivers/aic8800/aic8800_fdrv/rwnx_main.c
++++ b/src/USB/driver_fw/drivers/aic8800/aic8800_fdrv/rwnx_main.c
+@@ -14,6 +14,15 @@
+ #include <linux/pci.h>
+ #include <linux/inetdevice.h>
+ #include <net/cfg80211.h>
++
++/* Linux 7.3 renamed .probe_client to .probe_peer and added link_id to
++ * cfg80211_probe_status(). The same series turned NL80211_CMD_PROBE_CLIENT into
++ * a compatibility #define, which identifies the new API independently of the
++ * version number (android-mainline carries it while still reporting 7.2).
++ */
++#ifdef NL80211_CMD_PROBE_CLIENT
++#define RWNX_CFG80211_PROBE_PEER
++#endif
+ #include <net/ip.h>
+ #include <linux/etherdevice.h>
+ #include <linux/netdevice.h>
+@@ -3940,7 +3949,12 @@
+ 	   spin_unlock_bh(&rwnx_vif->rwnx_hw->cb_lock);
+ 
+        printk("sta %pM found = %d\n", mac, found);
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
++#if defined(RWNX_CFG80211_PROBE_PEER)
++       if(found)
++               cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, -1, 1, 0, false, GFP_ATOMIC);
++       else
++               cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, -1, 0, 0, false, GFP_ATOMIC);
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+        if(found)
+                cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, 1, 0, false, GFP_ATOMIC);
+        else
+@@ -6553,7 +6567,11 @@
+     .change_beacon = rwnx_cfg80211_change_beacon,
+     .stop_ap = rwnx_cfg80211_stop_ap,
+     .set_monitor_channel = rwnx_cfg80211_set_monitor_channel,
++#ifdef RWNX_CFG80211_PROBE_PEER
++    .probe_peer = rwnx_cfg80211_probe_client,
++#else
+     .probe_client = rwnx_cfg80211_probe_client,
++#endif
+ //    .mgmt_frame_register = rwnx_cfg80211_mgmt_frame_register,
+     .set_wiphy_params = rwnx_cfg80211_set_wiphy_params,
+     .set_txq_params = rwnx_cfg80211_set_txq_params,
+--- a/src/USB/driver_fw/drivers/aic8800/aic8800_fdrv/rwnx_tx.c
++++ b/src/USB/driver_fw/drivers/aic8800/aic8800_fdrv/rwnx_tx.c
+@@ -1439,7 +1439,7 @@
+     
+     struct ethhdr eth_t;
+ #ifdef CONFIG_FILTER_TCP_ACK
+-    struct msg_buf *msgbuf;
++    struct msg_buf *msgbuf = NULL;  /* Q6A: was passed uninitialised; intf_tcp_alloc_msg overwrites it */
+ #endif
+ 
+ #ifdef CONFIG_ONE_TXQ
+--- a/src/USB/driver_fw/drivers/aic_btusb/aic_btusb.c
++++ b/src/USB/driver_fw/drivers/aic_btusb/aic_btusb.c
+@@ -3361,7 +3361,7 @@
+ 
+ static int aicbt_patch_trap_data_load(firmware_info *fw_info, struct aicbt_patch_table *head)
+ {
+-    int ret_val;
++    int ret_val = 0;  /* Q6A: was uninitialised; only used in a printk */
+     
+ 	struct aicbt_patch_info_t patch_info = {
+ 		.info_len          = 0,

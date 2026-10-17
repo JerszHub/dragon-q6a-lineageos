@@ -1,5 +1,5 @@
 #!/bin/bash
-# build_aic8800.sh — builds the AIC8800D80 (USB) drivers against OUR 7.1.0 kernel.
+# build_aic8800.sh — builds the AIC8800D80 (USB) drivers against OUR kernel (KERNEL_OBJ of the tree).
 #
 # Topology: AIC8800D80 on USB behind the on-board hub (a69c:8d80, DTS: wifi@4).
 # Our Android 13 builds used PREBUILT modules from RadxaOS (vermagic 6.18.2-4-qcom). On
@@ -39,7 +39,26 @@
 # ⚠️ CONFIG_USE_FW_REQUEST = n (the default): the driver reads files DIRECTLY through
 # filp_open, not through request_firmware. The firmware must really sit at that path.
 set -u
-SRC=$HOME/q6a/aic8800_src/src/USB/driver_fw/drivers
+AIC_TOP=${AIC8800_SRC:-$HOME/q6a/aic8800_src}
+SRC=$AIC_TOP/src/USB/driver_fw/drivers
+# Tested radxa-pkg/aic8800 commit.
+AIC_COMMIT=516e3b087763d80c44f5e3b6d2dd63e0d925c91d
+REPO_DIR=$(cd "$(dirname "$0")/.." && pwd)
+
+# Prepare the source on first use: Radxa's tree, its Debian series, then our patch.
+# The series is applied with "patch -N" and failures are tolerated, because two patches
+# (fix-usb-firmware-path, fix-Lower-the-debugging-log-level) have hunks that do not apply.
+# The rejected hunks only touch the CONFIG_PLATFORM_UBUNTU firmware path, which we disable.
+if [ ! -d "$SRC" ]; then
+  git clone -q https://github.com/radxa-pkg/aic8800 "$AIC_TOP" || exit 1
+  git -C "$AIC_TOP" checkout -q "$AIC_COMMIT" || exit 1
+  ( cd "$AIC_TOP" && while read -r p; do
+      case "$p" in ""|\#*) continue ;; esac
+      patch -p1 -s -N < "debian/patches/$p" >/dev/null || echo "  (partial) $p"
+    done < debian/patches/series ) || exit 1
+  ( cd "$AIC_TOP" && patch -p1 -s < "$REPO_DIR"/patches/aic8800/0001-*.patch ) || exit 1
+fi
+
 KSRC=${LINEAGE_TREE:-$HOME/q6a/lineage}/kernel/mainline/android-mainline
 KOBJ=${LINEAGE_TREE:-$HOME/q6a/lineage}/out/target/product/Generic_arm64/obj/KERNEL_OBJ
 CLANG=${LINEAGE_TREE:-$HOME/q6a/lineage}/prebuilts/clang/host/linux-x86/clang-r596125/bin
@@ -77,8 +96,10 @@ build_one() {
   return $rc
 }
 
-build_one "$SRC/aic8800" "aic_load_fw + aic8800_fdrv"
-build_one "$SRC/aic_btusb" "aic_btusb"
+rm -f "${OUT:?}"/*.ko
+FAILED=0
+build_one "$SRC/aic8800" "aic_load_fw + aic8800_fdrv" || FAILED=1
+build_one "$SRC/aic_btusb" "aic_btusb" || FAILED=1
 
 echo
 echo "=== modules built ==="
@@ -86,3 +107,4 @@ ls -la "$OUT"/*.ko 2>/dev/null | awk '{printf "  %8.1f KB  %s\n",$5/1024,$9}' ||
 for m in "$OUT"/*.ko; do
   [ -f "$m" ] && echo "  $(basename $m): vermagic=$(modinfo "$m" 2>/dev/null | awk '/^vermagic/{$1="";print}' | xargs)"
 done
+exit $FAILED

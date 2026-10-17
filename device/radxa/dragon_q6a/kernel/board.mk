@@ -34,3 +34,7 @@ TARGET_KERNEL_CONFIG_EXT := \
     kernel/mainline/configs/fragments/y/fbcon.config \
     $(DEVICE_PATH)/configs/kernel/customizations.config \
     $(DRAGON_Q6A_KERNEL_PATH)/qcs6490.config
+
+# android-mainline dropped its empty Kconfig.ext placeholder (Kleaf generates one), so point
+# the kernel at ours. Needs TARGET_KERNEL_KCONFIG_EXT_PREFIX from LineageOS Gerrit 489817.
+TARGET_KERNEL_KCONFIG_EXT_PREFIX := $(DRAGON_Q6A_KERNEL_PATH)/kconfig-ext

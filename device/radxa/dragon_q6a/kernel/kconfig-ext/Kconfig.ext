@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: GPL-2.0
+# Intentionally empty. android-mainline no longer ships this placeholder (Kleaf generates
+# it), but the top-level Kconfig still sources $(KCONFIG_EXT_PREFIX)Kconfig.ext.
