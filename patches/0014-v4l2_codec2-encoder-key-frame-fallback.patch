@@ -1,0 +1,52 @@
+diff --git a/v4l2/V4L2Encoder.cpp b/v4l2/V4L2Encoder.cpp
+index 653aa97..710d44f 100644
+--- a/v4l2/V4L2Encoder.cpp
++++ b/v4l2/V4L2Encoder.cpp
+@@ -314,7 +314,7 @@ void V4L2Encoder::handleEncodeRequest() {
+     }
+ 
+     // Request the next frame to be a key frame each time the counter reaches 0.
+-    if (mKeyFrameCounter == 0) {
++    if (mKeyFrameCounter == 0 && mForceKeyFrameSupported) {
+         if (!mDevice->setExtCtrls(V4L2_CTRL_CLASS_MPEG,
+                                   {V4L2ExtCtrl(V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME)})) {
+             ALOGE("Failed requesting key frame");
+@@ -602,11 +602,21 @@ bool V4L2Encoder::configureDevice(C2Config::profile_t outputProfile,
+         // assume the operation was successful for now.
+     }
+ 
+-    // Additional optional controls:
++    // Additional optional controls, set one by one so that a missing control does not make the
++    // others fail too:
+     // - Enable macroblock-level bitrate control.
+-    // - Set GOP length to 0 to disable periodic key frames.
+-    mDevice->setExtCtrls(V4L2_CTRL_CLASS_MPEG, {V4L2ExtCtrl(V4L2_CID_MPEG_VIDEO_MB_RC_ENABLE, 1),
+-                                                V4L2ExtCtrl(V4L2_CID_MPEG_VIDEO_GOP_SIZE, 0)});
++    // - Set GOP length to 0 to disable periodic key frames, as we request them ourselves. Devices
++    //   that cannot be asked for a key frame produce them at the requested period instead.
++    mDevice->setExtCtrls(V4L2_CTRL_CLASS_MPEG,
++                         {V4L2ExtCtrl(V4L2_CID_MPEG_VIDEO_MB_RC_ENABLE, 1)});
++    mForceKeyFrameSupported = mDevice->isCtrlExposed(V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME);
++    if (!mForceKeyFrameSupported) {
++        ALOGW("Device can't be asked for key frames, using a GOP size of %u", mKeyFramePeriod);
++    }
++    mDevice->setExtCtrls(
++            V4L2_CTRL_CLASS_MPEG,
++            {V4L2ExtCtrl(V4L2_CID_MPEG_VIDEO_GOP_SIZE,
++                         mForceKeyFrameSupported ? 0 : static_cast<int32_t>(mKeyFramePeriod))});
+ 
+     // All controls below are H.264-specific, so we can return here if the profile is not H.264.
+     if (outputProfile >= C2Config::PROFILE_AVC_BASELINE &&
+diff --git a/v4l2/include/v4l2_codec2/v4l2/V4L2Encoder.h b/v4l2/include/v4l2_codec2/v4l2/V4L2Encoder.h
+index d1eb656..9a71eca 100644
+--- a/v4l2/include/v4l2_codec2/v4l2/V4L2Encoder.h
++++ b/v4l2/include/v4l2_codec2/v4l2/V4L2Encoder.h
+@@ -159,6 +159,8 @@ private:
+     uint32_t mKeyFramePeriod = 0;
+     // Key frame counter, a key frame will be requested each time it reaches zero.
+     uint32_t mKeyFrameCounter = 0;
++    // Whether the device can be asked for a key frame. If not, the GOP size sets the period.
++    bool mForceKeyFrameSupported = true;
+ 
+     // Whether we need to manually cache and prepend SPS and PPS to IDR frames.
+     bool mInjectParamsBeforeIDR = false;

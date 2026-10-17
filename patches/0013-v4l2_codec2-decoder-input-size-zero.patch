@@ -1,0 +1,16 @@
+diff --git a/v4l2/V4L2Decoder.cpp b/v4l2/V4L2Decoder.cpp
+index 52b63b1..d6de10a 100644
+--- a/v4l2/V4L2Decoder.cpp
++++ b/v4l2/V4L2Decoder.cpp
+@@ -201,8 +201,9 @@ bool V4L2Decoder::setupInputFormat(const uint32_t inputPixelFormat, const size_t
+         return false;
+     }
+ 
+-    // Setup the input format.
+-    auto format = mInputQueue->setFormat(inputPixelFormat, ui::Size(), inputBufferSize, 0);
++    // Setup the input format. The coded size is parsed from the stream, so pass 0x0 as the V4L2
++    // stateful decoder interface allows. A default ui::Size is -1x-1, which drivers may not clamp.
++    auto format = mInputQueue->setFormat(inputPixelFormat, ui::Size(0, 0), inputBufferSize, 0);
+     if (!format) {
+         ALOGE("Failed to call IOCTL to set input format.");
+         return false;

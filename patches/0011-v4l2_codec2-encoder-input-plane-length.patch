@@ -1,0 +1,23 @@
+diff --git a/v4l2/V4L2Encoder.cpp b/v4l2/V4L2Encoder.cpp
+index 730827c..653aa97 100644
+--- a/v4l2/V4L2Encoder.cpp
++++ b/v4l2/V4L2Encoder.cpp
+@@ -8,6 +8,7 @@
+ #include <v4l2_codec2/v4l2/V4L2Encoder.h>
+ 
+ #include <stdint.h>
++#include <algorithm>
+ #include <optional>
+ #include <vector>
+ 
+@@ -796,7 +797,9 @@ bool V4L2Encoder::enqueueInputBuffer(std::unique_ptr<InputFrame> frame) {
+         buffer->setPlaneDataOffset(0, planes[0].mOffset);
+         bytesUsed += planes[0].mOffset;
+         // Workaround: filling length should not be needed. This is a bug of videobuf2 library.
+-        buffer->setPlaneSize(0, bytesUsed);
++        // The driver may require a larger buffer than the frame data (e.g. Venus pads NV12).
++        buffer->setPlaneSize(
++                0, std::max(bytesUsed, mInputLayout->mPlanes[0].mSize + planes[0].mOffset));
+         buffer->setPlaneBytesUsed(0, bytesUsed);
+         // We only have one memory plane so we shall submit only one FD. The others are duplicates
+         // of the first one anyway.
