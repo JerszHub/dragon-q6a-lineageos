@@ -1,0 +1,22 @@
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
+index 42d0a529b4d5..373b9fd620d1 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
+@@ -1423,6 +1423,17 @@ static struct msm_display_topology dpu_crtc_get_topology(
+ 	else
+ 		topology.num_lm = 1;
+ 
++	/*
++	 * Splitting a mode that fits one mixer is optional, but colour management
++	 * needs a DSPP per mixer. Keep such a mode on one mixer when there are not
++	 * enough DSPPs for two (SC7280 has a single DSPP, on LM_0).
++	 */
++	if ((crtc_state->ctm || crtc_state->gamma_lut) && topology.num_lm == 2 &&
++	    topology.num_intf == 1 && topology.num_dsc == 0 &&
++	    dpu_kms->catalog->dspp_count < 2 &&
++	    mode->hdisplay <= dpu_kms->catalog->caps->max_mixer_width)
++		topology.num_lm = 1;
++
+ 	if (crtc_state->ctm || crtc_state->gamma_lut)
+ 		topology.num_dspp = topology.num_lm;
+ 
