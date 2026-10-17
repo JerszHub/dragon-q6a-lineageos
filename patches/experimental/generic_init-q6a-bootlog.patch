@@ -1,0 +1,87 @@
+--- a/services/generic_init/first_stage_init.cpp
++++ b/services/generic_init/first_stage_init.cpp
+@@ -19,6 +19,7 @@
+ #include <dirent.h>
+ #include <fcntl.h>
+ #include <paths.h>
++#include <poll.h>
+ #include <stdlib.h>
+ #include <sys/mount.h>
+ #include <sys/stat.h>
+@@ -204,6 +205,68 @@
+     ForkExecveAndWaitForCompletion(path, const_cast<char**>(args));
+ }
+ 
++// Q6A diagnostics: with androidboot.q6a_bootlog=1, copy the kernel log to the boot medium for
++// the whole boot, so a board that resets without a panic still leaves a log behind. Each
++// batch is written with fdatasync, so a hard reset loses at most the batch in flight. The
++// last three boots are kept as boot-0.log (this one), boot-1.log and boot-2.log.
++void StartBootLog(const std::string& cmdline) {
++    if (cmdline.find("androidboot.q6a_bootlog=1") == std::string::npos) return;
++    static const char kDir[] = "/mnt/vendor/generic_init/android/q6a-bootlog";
++    static const char kLog0[] = "/mnt/vendor/generic_init/android/q6a-bootlog/boot-0.log";
++    static const char kLog1[] = "/mnt/vendor/generic_init/android/q6a-bootlog/boot-1.log";
++    static const char kLog2[] = "/mnt/vendor/generic_init/android/q6a-bootlog/boot-2.log";
++    constexpr off_t kMaxSize = 32 << 20;
++
++    mkdir(kDir, 0755);
++    unlink(kLog2);
++    rename(kLog1, kLog2);
++    rename(kLog0, kLog1);
++    int out = open(kLog0, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
++    int kmsg = open("/dev/kmsg", O_RDONLY | O_NONBLOCK | O_CLOEXEC);
++    if (out < 0 || kmsg < 0) {
++        PLOG(ERROR) << "q6a bootlog: cannot open log or /dev/kmsg";
++        if (out >= 0) close(out);
++        if (kmsg >= 0) close(kmsg);
++        return;
++    }
++    fsync(out);
++    pid_t pid = fork();
++    if (pid != 0) {
++        if (pid < 0) PLOG(ERROR) << "q6a bootlog: fork failed";
++        close(out);
++        close(kmsg);
++        return;
++    }
++
++    // Child: only plain system calls from here on, the parent may have had threads.
++    setsid();
++    static char buf[256 << 10];
++    off_t written = 0;
++    while (written < kMaxSize) {
++        size_t len = 0;
++        // Drain everything that is available, one record per read().
++        while (len + 8192 <= sizeof(buf)) {
++            ssize_t n = read(kmsg, buf + len, 8192);
++            if (n > 0) {
++                len += n;
++            } else if (n < 0 && errno == EPIPE) {
++                continue;  // records were overwritten before we read them
++            } else {
++                break;     // EAGAIN: nothing more for now
++            }
++        }
++        if (len > 0) {
++            ssize_t w = write(out, buf, len);
++            if (w > 0) written += w;
++            fdatasync(out);
++        } else {
++            struct pollfd pfd = {.fd = kmsg, .events = POLLIN};
++            poll(&pfd, 1, -1);
++        }
++    }
++    _exit(0);
++}
++
+ }  // namespace
+ 
+ std::vector<std::string> GetModulesToLoad(const std::string& module_base_dir,
+@@ -629,6 +692,7 @@
+ 
+             // Mount partitions
+             DynamicMountHandler::OnPostBlockDevices();
++            StartBootLog(cmdline);
+ 
+             ExecuteVendorInitProgram(boot_mode);
+ 
