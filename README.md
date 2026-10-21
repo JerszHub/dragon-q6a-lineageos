@@ -39,6 +39,8 @@ Each item below was verified on hardware, not inferred from logs alone.
 - **Bluetooth** — pairing and OBEX file transfer, using the kernel's generic `btusb`
 - **Persistent `/data`** — 231 GB ext4 partition, verified across a reboot and a power cycle
 - **Audio, 3.5 mm jack** — WCD9385 through the ADSP; confirmed by listening
+- **Hardware video codecs** — iris decodes H.264, HEVC and VP9 and encodes H.264
+  (`screenrecord`); 1080p H.264 playback takes 8% CPU against 22% with the software decoder
 - **adb** — over TCP
 
 ## What does not work yet
@@ -47,7 +49,6 @@ Each item below was verified on hardware, not inferred from logs alone.
   ASoC component registers, but routing is unconfigured and it is **not verified by listening**
 - **Bluetooth audio (A2DP)** — the profile is active in the framework, untested
 - **NVMe** — driver is in the image, untested on this branch
-- **Hardware video codecs**
 - **I²C / SPI** — the board's `qupv3fw.elf` is missing
 - **USB3 SuperSpeed** — the QMP PHY runs in DP-only mode (see below)
 - **MIPI-DSI**

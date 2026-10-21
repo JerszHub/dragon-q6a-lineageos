@@ -48,7 +48,7 @@ around "what the stock OS supported".
 | Wi-Fi hotspot | MUST (the driver offers AP and P2P-GO) | An access point starts and broadcasts from the framework (`cmd wifi start-softap`); a client getting internet through it is untested |
 | Wi-Fi and Bluetooth MAC addresses | MUST match stock | Read from the chip (`addr_assign_type=0`), so almost certainly identical to RadxaOS; not compared directly |
 | microSD slot | MUST | Both SDHCI hosts probe; no card was inserted. `/data` lived on a microSD card during bring-up, so the slot works; recheck with a card |
-| Hardware video codecs | MUST if the stock OS supports them | Kernel side works with `vpu20_p1.mbn` from upstream linux-firmware. The V4L2 Codec2 HAL is in the image but declares no component until `ro.vendor.v4l2_codec2.*.supported.*` is set; with it, encoding fails on the input format and DMA-buf queueing. Needs integration work between the HAL, minigbm and Venus before the properties can ship |
+| Hardware video codecs | MUST if the stock OS supports them | Work: H.264, HEVC and VP9 decoding and H.264 encoding through iris and the V4L2 Codec2 HAL. Upstream work left: the HAL should report `C2PortActualDelayTuning` from the driver's minimum buffer count instead of the fixed output delay of 20 (0018), and frames iris returns with `V4L2_BUF_FLAG_ERROR` and timestamp 0 leave their work items uncompleted |
 | Camera | MUST if the stock OS supports it | CCI is disabled in the DT and no sensor is attached. Needs agreement with the Directors, given the non-Android stock OS |
 | MIPI-DSI | SHOULD | Not started |
 | USB/Bluetooth tethering, GSI boot | SHOULD | Untested |
@@ -78,7 +78,9 @@ around "what the stock OS supported".
 | AOSP `frameworks/native` | `MultifileBlobCache::get()`: compare the stored header with the stored value size, not with the caller's buffer size; every oversized lookup (Mesa always passes 64 KiB) was a miss |
 | Mesa (freedreno a6xx) | Reverse index from seqno to texture states, so deleting a sampler view no longer walks the whole texture cache; about 16% of a game's CPU time |
 | Mesa (driconf) | Per-application GL renderer override for Genshin Impact instead of the vendor property |
-| LineageOS Gerrit | Missing `LineageSettingsProvider` dependency; `generic_init` canonical mount point (0007); the `device/mainline/generic` patches in `patches/`. Dropped after checking upstream: 0002 (`lineage-sdk` builds unpatched on the current tree, verified 2026-10-11) and 0003 (`libzstd` visibility; upstream guards the dependency in `generic_init` instead, change 505913) |
+| LineageOS Gerrit | Missing `LineageSettingsProvider` dependency; `generic_init` canonical mount point (0007); `generic_init` vfat `umask`, without which `vendor.prop` in the android dir is never loaded (0019); the `device/mainline/generic` patches in `patches/`. Dropped after checking upstream: 0002 (`lineage-sdk` builds unpatched on the current tree, verified 2026-10-11) and 0003 (`libzstd` visibility; upstream guards the dependency in `generic_init` instead, change 505913) |
+| AOSP `external/v4l2_codec2` | Decoder input dmabuf cache sync (0017); encoder plane length (0011), decoder 0x0 input size (0013), key frame fallback (0014) |
+| Linux (iris) | The gen2 encoder never subscribes to the picture type, so no encoded buffer carries `V4L2_BUF_FLAG_KEYFRAME` (0020). To report: `rmmod qcom_iris` deadlocks, as `iris_core_deinit()` holds `core->lock` across `disable_irq()` while the threaded handler waits for that lock |
 | Linux | Dragon Q6A device tree; `orientation-switch` on a QMP PHY with no USB-C connector; the `genpd` ordering; the SMMU SError on a failed DP link |
 
 ### Submission format

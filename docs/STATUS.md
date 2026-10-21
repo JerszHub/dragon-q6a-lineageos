@@ -18,7 +18,7 @@ Last updated: 2026-10-11.
 | Audio over HDMI | declared, unverified | `displayport-dai-link` in DT, `hdmi-audio-codec` registers, no routing yet |
 | Bluetooth audio | untested | A2DP profile active in the framework |
 | NVMe | untested | `nvme.ko` is in the image |
-| HW video codecs | kernel works, Android needs integration | Venus probes at boot (`qcom-venus-encoder`, `qcom-venus-decoder`) and the V4L2 Codec2 HAL runs, but it declares a component only when `ro.vendor.v4l2_codec2.{encoder,decoder}.supported.<codec>` is set. With those set at runtime, Android lists `c2.v4l2.avc.encoder` and the AVC/VP8/VP9 decoders, and encoding then fails: Venus rejects the `NM12` input format and the DMA-buf queue (`VIDIOC_QBUF`). The properties are therefore not shipped. Decoding is untested: the image has no video player |
+| HW video codecs | works | iris (Linux 7.2) with the gen2 firmware `vpu20_p1_gen2_s6.mbn`; the gen1 `vpu20_p1.mbn` crashes the firmware as soon as decoding starts. Decoders `c2.v4l2.{avc,hevc,vp9}.decoder` play smoothly with no corrupt frames; `c2.v4l2.avc.encoder` records 1920x1080 with `screenrecord` and the file plays back clean. Enabled by `vendor.prop` on the ESP. Needs patches 0017–0020; the output-delay change (0018) is a stopgap |
 | I²C / SPI | fixable | `qcom/qcm6490/qupv3fw.elf` from upstream linux-firmware binds all three I²C and both SPI controllers (tested 2026-10-06 by loading it at runtime) |
 | USB3 SuperSpeed | broken by design | PHY forced to DP-only, see README |
 | MIPI-DSI | not started | |
