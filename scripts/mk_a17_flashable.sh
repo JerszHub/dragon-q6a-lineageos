@@ -94,6 +94,9 @@ for e in a17 a17-udbg a17-quiet; do
 done
 printf 'timeout 0\ndefault a17\n' > "$TMP/loader.conf"
 mcopy -o -i "$SPEC" "$TMP/loader.conf" ::/loader/loader.conf
+# Board properties (video codecs), imported by the generic image from the android dir.
+mcopy -o -i "$SPEC" "$REPO_DIR/esp/Android/vendor.prop" ::/Android/vendor.prop
+echo "    vendor.prop"
 
 echo "=== 6/7 metadata and userdata filesystems"
 mke2fs -q -F -t ext4 -b 4096 -L metadata -m 0 "$TMP/metadata.img" $(( META_MB*256 ))
@@ -116,7 +119,8 @@ for f in ::/Android/Image ::/Android/qcs6490-radxa-dragon-q6a.dtb ::/Android/sys
          ::/Android/firmware/regulatory.db \
          ::/Android/firmware/qcom/qcs6490/QCS6490-Radxa-Dragon-Q6A-tplg.bin \
          ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a/adsp.mbn \
-         ::/Android/firmware/qcom/vpu/vpu20_p1.mbn ::/Android/firmware/qcom/qcm6490/qupv3fw.elf \
+         ::/Android/firmware/qcom/vpu/vpu20_p1.mbn ::/Android/firmware/qcom/vpu/vpu20_p1_gen2_s6.mbn \
+         ::/Android/firmware/qcom/qcm6490/qupv3fw.elf ::/Android/vendor.prop \
          ::/loader/loader.conf ::/loader/entries/a17.conf ::/EFI/BOOT/BOOTAA64.EFI; do
   mtype -i "$SPEC" "$f" >/dev/null 2>&1 && echo "    OK  $f" || { echo "    MISSING $f"; exit 1; }
 done

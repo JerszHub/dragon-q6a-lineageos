@@ -45,6 +45,7 @@ done
 for e in a17-dbg a17-drm a17-fb; do mdel -i "$SPEC" ::/loader/entries/$e.conf 2>/dev/null || true; done
 printf 'timeout 0\ndefault a17\n' > /tmp/loader.conf
 mcopy -o -i "$SPEC" /tmp/loader.conf ::/loader/loader.conf
+mcopy -o -i "$SPEC" "$HERE/../esp/Android/vendor.prop" ::/Android/vendor.prop
 
 echo "=== 4/5 verifying"
 PSTART=$(sgdisk -i 1 "$OUT" | awk '/First sector/{print $3}')
@@ -58,7 +59,8 @@ for f in ::/Android/Image ::/Android/qcs6490-radxa-dragon-q6a.dtb ::/Android/sys
          ::/Android/firmware/regulatory.db \
          ::/Android/firmware/qcom/qcs6490/QCS6490-Radxa-Dragon-Q6A-tplg.bin \
          ::/Android/firmware/qcom/qcs6490/radxa/dragon-q6a/adsp.mbn \
-         ::/Android/firmware/qcom/vpu/vpu20_p1.mbn ::/Android/firmware/qcom/qcm6490/qupv3fw.elf \
+         ::/Android/firmware/qcom/vpu/vpu20_p1.mbn ::/Android/firmware/qcom/vpu/vpu20_p1_gen2_s6.mbn \
+         ::/Android/firmware/qcom/qcm6490/qupv3fw.elf ::/Android/vendor.prop \
          ::/loader/loader.conf ::/loader/entries/a17.conf ::/EFI/BOOT/BOOTAA64.EFI; do
   mtype -i "$SPEC" "$f" >/dev/null 2>&1 && echo "    OK  $f" || { echo "    MISSING $f"; exit 1; }
 done

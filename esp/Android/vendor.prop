@@ -1,0 +1,11 @@
+# Board properties for the Radxa Dragon Q6A (QCS6490).
+# Installed on the EFI system partition as Android/vendor.prop. The generic image imports it from
+# /mnt/vendor/generic_init/android/${ro.boot.android_dir:-android}/vendor.prop, so per-board
+# settings stay out of the shared image.
+
+# Video codecs (iris driver). The V4L2 Codec2 HAL only declares components enabled here.
+# iris on this SoC decodes H.264, HEVC and VP9 and encodes H.264 and HEVC; the HAL has no HEVC encoder.
+ro.vendor.v4l2_codec2.decoder.supported.h264=true
+ro.vendor.v4l2_codec2.decoder.supported.hevc=true
+ro.vendor.v4l2_codec2.decoder.supported.vp9=true
+ro.vendor.v4l2_codec2.encoder.supported.h264=true

@@ -90,7 +90,9 @@ else
 fi
 
 # Video (iris) and QUP serial-engine firmware. Without vpu20_p1.mbn the video codec fails to
-# probe; without qupv3fw.elf no I2C or SPI bus comes up.
+# probe; without qupv3fw.elf no I2C or SPI bus comes up. Since Linux 7.2 iris prefers the gen2
+# firmware vpu20_p1_gen2_s6.mbn and falls back to vpu20_p1.mbn, which crashes ("sys error")
+# as soon as decoding starts; both are installed.
 for d in ::/Android/firmware/qcom/vpu ::/Android/firmware/qcom/qcm6490; do
   mmd -i "$SPEC" "$d" 2>/dev/null || true
 done
@@ -99,6 +101,12 @@ if [ -f "$LFW_SRC/qcom/vpu/vpu20_p1.mbn" ]; then
   echo "    video: vpu20_p1.mbn"
 else
   echo "    WARNING: $LFW_SRC/qcom/vpu/vpu20_p1.mbn missing - no hardware video codecs"
+fi
+if [ -f "$LFW_SRC/qcom/vpu/vpu20_p1_gen2_s6.mbn" ]; then
+  mcopy -o -i "$SPEC" "$LFW_SRC/qcom/vpu/vpu20_p1_gen2_s6.mbn" ::/Android/firmware/qcom/vpu/vpu20_p1_gen2_s6.mbn
+  echo "    video: vpu20_p1_gen2_s6.mbn"
+else
+  echo "    WARNING: $LFW_SRC/qcom/vpu/vpu20_p1_gen2_s6.mbn missing - video decoding will fail"
 fi
 if [ -f "$LFW_SRC/qcom/qcm6490/qupv3fw.elf" ]; then
   mcopy -o -i "$SPEC" "$LFW_SRC/qcom/qcm6490/qupv3fw.elf" ::/Android/firmware/qcom/qcm6490/qupv3fw.elf
