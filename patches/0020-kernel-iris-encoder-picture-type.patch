@@ -1,0 +1,69 @@
+diff --git a/drivers/media/platform/qcom/iris/iris_hfi_gen2.c b/drivers/media/platform/qcom/iris/iris_hfi_gen2.c
+index 3b8fbefb8b93..379aa6f0ba37 100644
+--- a/drivers/media/platform/qcom/iris/iris_hfi_gen2.c
++++ b/drivers/media/platform/qcom/iris/iris_hfi_gen2.c
+@@ -1873,6 +1873,10 @@ static const u32 sm8550_vdec_subscribe_output_properties_av1[] = {
+ 	HFI_PROP_WORST_COMPLEXITY_FACTOR,
+ };
+ 
++static const u32 sm8550_venc_subscribe_output_properties[] = {
++	HFI_PROP_PICTURE_TYPE,
++};
++
+ static const u32 sm8550_dec_ip_int_buf_tbl[] = {
+ 	BUF_BIN,
+ 	BUF_COMV,
+@@ -1948,6 +1952,9 @@ const struct iris_firmware_data iris_hfi_gen2_data = {
+ 	.dec_output_prop_vp9 = sm8550_vdec_subscribe_output_properties_vp9,
+ 	.dec_output_prop_vp9_size =
+ 		ARRAY_SIZE(sm8550_vdec_subscribe_output_properties_vp9),
++	.enc_output_prop = sm8550_venc_subscribe_output_properties,
++	.enc_output_prop_size =
++		ARRAY_SIZE(sm8550_venc_subscribe_output_properties),
+ 	.dec_output_prop_av1 = sm8550_vdec_subscribe_output_properties_av1,
+ 	.dec_output_prop_av1_size =
+ 		ARRAY_SIZE(sm8550_vdec_subscribe_output_properties_av1),
+@@ -2010,6 +2017,9 @@ const struct iris_firmware_data iris_hfi_milos_data = {
+ 	.dec_output_prop_vp9 = sm8550_vdec_subscribe_output_properties_vp9,
+ 	.dec_output_prop_vp9_size =
+ 		ARRAY_SIZE(sm8550_vdec_subscribe_output_properties_vp9),
++	.enc_output_prop = sm8550_venc_subscribe_output_properties,
++	.enc_output_prop_size =
++		ARRAY_SIZE(sm8550_venc_subscribe_output_properties),
+ 
+ 	.dec_ip_int_buf_tbl = sm8550_dec_ip_int_buf_tbl,
+ 	.dec_ip_int_buf_tbl_size = ARRAY_SIZE(sm8550_dec_ip_int_buf_tbl),
+diff --git a/drivers/media/platform/qcom/iris/iris_hfi_gen2_command.c b/drivers/media/platform/qcom/iris/iris_hfi_gen2_command.c
+index 388a36ff2b07..1d031b502b90 100644
+--- a/drivers/media/platform/qcom/iris/iris_hfi_gen2_command.c
++++ b/drivers/media/platform/qcom/iris/iris_hfi_gen2_command.c
+@@ -1059,10 +1059,12 @@ static int iris_hfi_gen2_subscribe_property(struct iris_inst *inst, u32 plane)
+ 
+ 	payload[0] = HFI_MODE_PROPERTY;
+ 
+-	if (inst->domain == ENCODER)
+-		return 0;
+-
+-	if (V4L2_TYPE_IS_OUTPUT(plane)) {
++	if (inst->domain == ENCODER) {
++		if (V4L2_TYPE_IS_OUTPUT(plane))
++			return 0;
++		subscribe_prop_size = core->iris_firmware_data->enc_output_prop_size;
++		subcribe_prop = core->iris_firmware_data->enc_output_prop;
++	} else if (V4L2_TYPE_IS_OUTPUT(plane)) {
+ 		subscribe_prop_size = core->iris_firmware_data->dec_input_prop_size;
+ 		subcribe_prop = core->iris_firmware_data->dec_input_prop;
+ 	} else {
+diff --git a/drivers/media/platform/qcom/iris/iris_platform_common.h b/drivers/media/platform/qcom/iris/iris_platform_common.h
+index 974809509146..35d2e615899d 100644
+--- a/drivers/media/platform/qcom/iris/iris_platform_common.h
++++ b/drivers/media/platform/qcom/iris/iris_platform_common.h
+@@ -274,6 +274,8 @@ struct iris_firmware_data {
+ 	unsigned int dec_output_prop_vp9_size;
+ 	const u32 *dec_output_prop_av1;
+ 	unsigned int dec_output_prop_av1_size;
++	const u32 *enc_output_prop;
++	unsigned int enc_output_prop_size;
+ 
+ 	const u32 *dec_ip_int_buf_tbl;
+ 	unsigned int dec_ip_int_buf_tbl_size;

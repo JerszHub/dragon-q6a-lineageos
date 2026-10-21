@@ -15,3 +15,7 @@
 0014-v4l2_codec2-encoder-key-frame-fallback.patch        external/v4l2_codec2
 0015-vendor-lineage-kernel-kconfig-ext-prefix.patch      vendor/lineage
 0016-kernel-dpu-single-mixer-when-dspp-short.patch          kernel/mainline/android-mainline
+0017-v4l2_codec2-decoder-sync-input-dmabuf.patch          external/v4l2_codec2
+0018-v4l2_codec2-decoder-output-delay-headroom.patch      external/v4l2_codec2
+0019-generic_init-vfat-umask.patch                        vendor/mainline
+0020-kernel-iris-encoder-picture-type.patch               kernel/mainline/android-mainline

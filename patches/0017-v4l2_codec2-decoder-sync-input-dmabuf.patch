@@ -1,0 +1,47 @@
+diff --git a/v4l2/V4L2Decoder.cpp b/v4l2/V4L2Decoder.cpp
+index d6de10a..0939488 100644
+--- a/v4l2/V4L2Decoder.cpp
++++ b/v4l2/V4L2Decoder.cpp
+@@ -8,7 +8,9 @@
+ 
+ #include <v4l2_codec2/v4l2/V4L2Decoder.h>
+ 
++#include <linux/dma-buf.h>
+ #include <stdint.h>
++#include <sys/ioctl.h>
+ 
+ #include <algorithm>
+ #include <vector>
+@@ -26,8 +28,24 @@
+ #include <v4l2_codec2/plugin_store/DmabufHelpers.h>
+ 
+ namespace android {
++
+ namespace {
+ 
++// Input buffers come from a cached dmabuf heap and Codec2 fills them through a plain mmap, with no
++// DMA_BUF_IOCTL_SYNC. A decoder that does not snoop CPU caches and keeps the buffer mapped between
++// QBUFs then reads stale data. Write the CPU caches back before handing the buffer to the device.
++void syncDmaBufForDevice(int fd) {
++    struct dma_buf_sync sync = {.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE};
++    if (ioctl(fd, DMA_BUF_IOCTL_SYNC, &sync) != 0) {
++        ALOGW("DMA_BUF_IOCTL_SYNC start failed: %d", errno);
++        return;
++    }
++    sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE;
++    if (ioctl(fd, DMA_BUF_IOCTL_SYNC, &sync) != 0) {
++        ALOGW("DMA_BUF_IOCTL_SYNC end failed: %d", errno);
++    }
++}
++
+ // Extra buffers for transmitting in the whole video pipeline.
+ constexpr size_t kNumExtraOutputBuffers = 4;
+ 
+@@ -520,6 +538,7 @@ void V4L2Decoder::pumpDecodeRequest() {
+               request.buffer->offset);
+         inputBuffer->setPlaneDataOffset(0, request.buffer->offset);
+         inputBuffer->setPlaneBytesUsed(0, request.buffer->offset + request.buffer->size);
++        syncDmaBufForDevice(request.buffer->dmabuf.handle()->data[0]);
+         std::vector<int> fds;
+         fds.push_back(std::move(request.buffer->dmabuf.handle()->data[0]));
+         if (!std::move(*inputBuffer).queueDMABuf(fds)) {

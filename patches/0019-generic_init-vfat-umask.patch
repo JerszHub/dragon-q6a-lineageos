@@ -1,0 +1,16 @@
+diff --git a/services/generic_init/dynamic_mount_handler.cpp b/services/generic_init/dynamic_mount_handler.cpp
+index 46592ab..c905980 100644
+--- a/services/generic_init/dynamic_mount_handler.cpp
++++ b/services/generic_init/dynamic_mount_handler.cpp
+@@ -553,6 +553,11 @@ void ParseBlockDevice(BlockDeviceInfo* info) {
+               << (info->rw ? "read-write" : "read-only");
+ 
+     info->mountopts = info->rw ? kMountOptsRw : kMountOptsRo;
++    // vfat has no permissions of its own and shows every file as 0777, which init refuses to
++    // load property files from ("Skipping insecure file"), e.g. vendor.prop in the android dir.
++    if (info->fs_type == "vfat") {
++        info->mountopts += std::string(info->mountopts.empty() ? "" : ",") + "umask=0022";
++    }
+ 
+     // Cleanup and exit
+     if (umount(kTryMountTarget.c_str()) == -1) {

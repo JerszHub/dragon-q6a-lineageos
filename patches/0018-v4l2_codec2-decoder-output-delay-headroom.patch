@@ -1,0 +1,19 @@
+diff --git a/components/DecodeInterface.cpp b/components/DecodeInterface.cpp
+index db560db..507f04f 100644
+--- a/components/DecodeInterface.cpp
++++ b/components/DecodeInterface.cpp
+@@ -456,9 +456,12 @@ uint32_t DecodeInterface::getOutputDelay(VideoCodec codec) {
+         // queued before being able to output the associated decoded buffers. We need to tell the
+         // codec2 framework that it should not stop queuing new work items until the maximum number
+         // of frame reordering is reached, to avoid stalling the decoder.
+-        return 16;
++        // The output delay also bounds how many output buffers the framework lets the component
++        // dequeue (delay + 4). A decoder that keeps a full DPB queued, such as iris asking for 18
++        // capture buffers, needs headroom on top of the 16 reordering frames.
++        return 20;
+     case VideoCodec::HEVC:
+-        return 16;
++        return 20;
+     case VideoCodec::VP8:
+         // The decoder might held a few frames as a reference for decoding. Since Android T
+         // the Codec2 is more prone to timeout the component if one is not producing frames. This
