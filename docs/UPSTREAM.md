@@ -79,7 +79,7 @@ around "what the stock OS supported".
 | Mesa (freedreno a6xx) | Reverse index from seqno to texture states, so deleting a sampler view no longer walks the whole texture cache; about 16% of a game's CPU time |
 | Mesa (driconf) | Per-application GL renderer override for Genshin Impact instead of the vendor property |
 | LineageOS Gerrit | Missing `LineageSettingsProvider` dependency; `generic_init` canonical mount point (0007); `generic_init` vfat `umask`, without which `vendor.prop` in the android dir is never loaded (0019); the `device/mainline/generic` patches in `patches/`. Dropped after checking upstream: 0002 (`lineage-sdk` builds unpatched on the current tree, verified 2026-10-11) and 0003 (`libzstd` visibility; upstream guards the dependency in `generic_init` instead, change 505913) |
-| AOSP `external/v4l2_codec2` | Decoder input dmabuf cache sync (0017); encoder plane length (0011), decoder 0x0 input size (0013), key frame fallback (0014) |
+| AOSP `external/v4l2_codec2` | Decoder input dmabuf cache sync (0017); encoder plane length (0011), decoder 0x0 input size (0013), key frame fallback (0014), GOP size 0 means key frames only on iris (0021) |
 | Linux (iris) | The gen2 encoder never subscribes to the picture type, so no encoded buffer carries `V4L2_BUF_FLAG_KEYFRAME` (0020). To report: `rmmod qcom_iris` deadlocks, as `iris_core_deinit()` holds `core->lock` across `disable_irq()` while the threaded handler waits for that lock |
 | Linux | Dragon Q6A device tree; `orientation-switch` on a QMP PHY with no USB-C connector; the `genpd` ordering; the SMMU SError on a failed DP link |
 

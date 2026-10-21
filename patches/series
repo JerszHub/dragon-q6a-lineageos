@@ -19,3 +19,4 @@
 0018-v4l2_codec2-decoder-output-delay-headroom.patch      external/v4l2_codec2
 0019-generic_init-vfat-umask.patch                        vendor/mainline
 0020-kernel-iris-encoder-picture-type.patch               kernel/mainline/android-mainline
+0021-v4l2_codec2-encoder-gop-size.patch               external/v4l2_codec2

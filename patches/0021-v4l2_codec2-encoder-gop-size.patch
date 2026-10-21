@@ -1,0 +1,26 @@
+diff --git a/v4l2/V4L2Encoder.cpp b/v4l2/V4L2Encoder.cpp
+index 710d44f..b138d1d 100644
+--- a/v4l2/V4L2Encoder.cpp
++++ b/v4l2/V4L2Encoder.cpp
+@@ -605,8 +605,10 @@ bool V4L2Encoder::configureDevice(C2Config::profile_t outputProfile,
+     // Additional optional controls, set one by one so that a missing control does not make the
+     // others fail too:
+     // - Enable macroblock-level bitrate control.
+-    // - Set GOP length to 0 to disable periodic key frames, as we request them ourselves. Devices
+-    //   that cannot be asked for a key frame produce them at the requested period instead.
++    // - Set GOP length to the key frame period. Drivers disagree on a GOP length of 0: Venus
++    //   rejects it and keeps its default, iris makes every frame a key frame. The key frames we
++    //   request ourselves fall on the same frames; devices that cannot be asked for one rely on
++    //   the GOP alone.
+     mDevice->setExtCtrls(V4L2_CTRL_CLASS_MPEG,
+                          {V4L2ExtCtrl(V4L2_CID_MPEG_VIDEO_MB_RC_ENABLE, 1)});
+     mForceKeyFrameSupported = mDevice->isCtrlExposed(V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME);
+@@ -616,7 +618,7 @@ bool V4L2Encoder::configureDevice(C2Config::profile_t outputProfile,
+     mDevice->setExtCtrls(
+             V4L2_CTRL_CLASS_MPEG,
+             {V4L2ExtCtrl(V4L2_CID_MPEG_VIDEO_GOP_SIZE,
+-                         mForceKeyFrameSupported ? 0 : static_cast<int32_t>(mKeyFramePeriod))});
++                         static_cast<int32_t>(std::min<uint32_t>(mKeyFramePeriod, INT32_MAX)))});
+ 
+     // All controls below are H.264-specific, so we can return here if the profile is not H.264.
+     if (outputProfile >= C2Config::PROFILE_AVC_BASELINE &&
