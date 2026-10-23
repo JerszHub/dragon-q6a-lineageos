@@ -21,7 +21,9 @@
 TAG=q6a_wwan
 OUT=/dev/q6a_wwan.at
 PIN_FILE=/data/misc/q6a_wwan/pin
-CONFIG="/system/bin/app_process -Djava.class.path=${Q6A_WWAN_JAR:-/system_ext/framework/q6a-wwan.jar} /system/bin org.lineageos.wwan.WwanConfig"
+JAVA="/system/bin/app_process -Djava.class.path=${Q6A_WWAN_JAR:-/system_ext/framework/q6a-wwan.jar} /system/bin"
+CONFIG="$JAVA org.lineageos.wwan.WwanConfig"
+APNS="$JAVA org.lineageos.wwan.ApnLookup"
 # Lenovo's FCC unlock key. Modules taken from Lenovo laptops keep the radio off at every
 # power-up until the host answers AT+GTFCCLOCKGEN, as ModemManager's fcc-unlock does.
 FCC_KEY=$(getprop persist.q6a.wwan.fcc_key)
@@ -29,11 +31,19 @@ FCC_KEY=${FCC_KEY:-3df8c719}
 
 log() { /system/bin/log -t $TAG "$*"; }
 
-# note <state>: log the state the loop is waiting in, once per change.
+# note <message> [state]: log the state the loop is waiting in, once per change, and
+# publish it for WwanStatus as q6a.wwan.state.
 note() {
+    [ -n "$2" ] && state $2
     [ "$1" = "$NOTE" ] && return
     NOTE=$1
     log "$1"
+}
+
+state() {
+    [ "$1" = "$STATE" ] && return
+    STATE=$1
+    setprop q6a.wwan.state $1
 }
 
 # Print "<usb device path> <AT interface number>" of the first supported modem.
@@ -104,7 +114,7 @@ sim_ready() {
             return 0 ;;
         "SIM PIN")
             if [ ! -s $PIN_FILE ]; then
-                note "the SIM card needs a PIN, write it to $PIN_FILE"
+                note "the SIM card needs a PIN, write it to $PIN_FILE" sim_pin
                 return 1
             fi
             if at "AT+CPIN=\"$(cat $PIN_FILE)\"" 10 | grep -q '^OK'; then
@@ -113,14 +123,15 @@ sim_ready() {
             fi
             rm -f $PIN_FILE
             log "the SIM card rejected the PIN; $PIN_FILE deleted"
+            state sim_pin
             ;;
         "")
             case "$out" in
-                *"CME ERROR: 10"*) note "no SIM card" ;;
-                *) note "SIM card not ready" ;;
+                *"CME ERROR: 10"*) note "no SIM card" no_sim ;;
+                *) note "SIM card not ready" starting ;;
             esac ;;
         *)
-            note "SIM card locked: $state" ;;
+            note "SIM card locked: $state" sim_locked ;;
     esac
     return 1
 }
@@ -131,23 +142,46 @@ registered() {
     at "AT+CGREG?" | grep -qE 'CGREG: [0-9]+,[15]'
 }
 
-# The APN: a user override, else the one the network assigned to the default bearer at
-# attach (context 0, e.g. "internet.mnc002.mcc260.gprs" -> "internet"), else "internet".
-# This covers most operators without an APN database.
-pick_apn() {
-    local apn
-    apn=$(getprop persist.q6a.wwan.apn)
-    if [ -z "$apn" ]; then
-        apn=$(at AT+CGCONTRDP=0 | sed -n 's/^+CGCONTRDP: 0,[0-9]*,"\([^"]*\)".*/\1/p' | head -n 1)
-        apn=${apn%%.mnc*}
-        case "$apn" in ims|sos|"") apn=internet ;; esac
-    fi
-    echo "$apn"
+# crsm <file id> <length>: read a transparent elementary file of the SIM card, as hex.
+crsm() {
+    at "AT+CRSM=176,$1,0,0,$2" |
+        sed -n 's/^+CRSM: *144, *0, *"\{0,1\}\([0-9A-Fa-f]*\).*/\1/p' | sed 's/\(FF\)*$//'
 }
 
+# The APNs to try, one "apn|auth|user|password" per line. A user override alone; else the
+# APN the network assigned to the default bearer at attach (context 0, e.g.
+# "internet.mnc002.mcc260.gprs" -> "internet"), then the SIM card's entries in the APN
+# database, matched by its IMSI, GID1 (EF 6F3E) and service provider name (EF 6F46), and
+# "internet" last. The identifiers go to ApnLookup on stdin and are never logged.
+apn_candidates() {
+    local apn imsi gid1 spn
+    apn=$(getprop persist.q6a.wwan.apn)
+    if [ -n "$apn" ]; then
+        echo "$apn|0||"
+        return
+    fi
+    apn=$(at AT+CGCONTRDP=0 | sed -n 's/^+CGCONTRDP: 0,[0-9]*,"\([^"]*\)".*/\1/p' | head -n 1)
+    apn=${apn%%.mnc*}
+    case "$apn" in ims|sos|"") ;; *) echo "$apn|0||" ;; esac
+    imsi=$(at AT+CIMI | grep -m 1 -E '^[0-9]{6,15}$')
+    if [ -n "$imsi" ]; then
+        gid1=$(crsm 28478 0)
+        spn=$(crsm 28486 17)
+        echo "$imsi ${gid1:--} ${spn:--}" | $APNS 2> /dev/null
+    fi
+    echo "internet|0||"
+}
+
+# connect <apn|auth|user|password>: make context 1 an active data session on this APN.
 connect() {
-    local apn current
-    apn=$(pick_apn)
+    local apn auth user pass rest current
+    # The "|" is quoted: mksh reads a bare one in a pattern as an alternative.
+    apn=${1%%"|"*}
+    rest=${1#*"|"}
+    auth=${rest%%"|"*}
+    rest=${rest#*"|"}
+    user=${rest%%"|"*}
+    pass=${rest#*"|"}
     if at "AT+CGACT?" | grep -q 'CGACT: 1,1'; then
         current=$(at AT+CGCONTRDP=1 | sed -n 's/^+CGCONTRDP: 1,[0-9]*,"\([^"]*\)".*/\1/p' | head -n 1)
         [ "${current%%.mnc*}" = "$apn" ] && return 0
@@ -155,7 +189,39 @@ connect() {
     fi
     log "connecting, APN $apn"
     at "AT+CGDCONT=1,\"IP\",\"$apn\"" > /dev/null
+    if [ "$auth" = 0 ]; then
+        at "AT+CGAUTH=1,0" > /dev/null
+    else
+        at "AT+CGAUTH=1,$auth,\"$user\",\"$pass\"" > /dev/null
+    fi
     at "AT+CGACT=1,1" 60 | grep -q '^OK'
+}
+
+# cell: publish the serving cell for WwanStatus as q6a.wwan.cell,
+# "operator|technology|band|RSRP dBm|RSRQ dB|SINR dB". The signal comes from MediaTek's
+# AT+ECSQ, in quarter dB: on the LTE line (RAT 4096) field 6 is RSRQ, 7 RSRP, 9 SINR and
+# 10 the band; AT+GTCCINFO reports the same values in whole dB.
+cell() {
+    local cops op act tech signal
+    cops=$(at AT+COPS? | grep -m 1 '^+COPS:')
+    op=$(echo "$cops" | sed -n 's/^+COPS: *[0-9]*,[0-9]*,"\([^"|]*\)".*/\1/p')
+    case "$op" in
+        *[!0-9]*|"") ;;
+        *) at "AT+COPS=3,0" > /dev/null ;;   # numeric; ask for names from the next round
+    esac
+    act=$(echo "$cops" | sed -n 's/^+COPS: *[0-9]*,[0-9]*,"[^"]*",\([0-9]*\).*/\1/p')
+    case "$act" in
+        0|1|3) tech=2G ;;
+        2|4|5|6) tech=3G ;;
+        7) tech=LTE ;;
+        13) tech=LTE+5G ;;
+        10|11|12) tech=5G ;;
+        *) tech= ;;
+    esac
+    signal=$(at AT+ECSQ | awk -F'[:,]' '/^\+ECSQ:/ && $9 + 0 == 4096 && $8 + 0 != 0 {
+        printf "%d|%.0f|%.1f|%.0f", $11, $8 / 4, $7 / 4, $10 / 4; exit }')
+    [ -n "$signal" ] || signal="|||"
+    setprop q6a.wwan.cell "$op|$tech|$signal"
 }
 
 # EthernetService stores the static configuration under the interface name and keeps it
@@ -173,10 +239,14 @@ release() {
 CUR_IF=$(getprop persist.q6a.wwan.iface)
 CUR_IP=
 READER=
+CANDS=
+STATE=
 while true; do
     set -- $(find_modem)
     if [ -z "$1" ]; then
-        note "no modem"
+        note "no modem" no_modem
+        setprop q6a.wwan.cell ""
+        CANDS=
         stop_reader
         release
         sleep 5
@@ -185,35 +255,48 @@ while true; do
     TTY=/dev/$(ls $1:1.$2 2>/dev/null | grep -m 1 '^ttyUSB')
     IF=$(ls $1:1.0/net 2>/dev/null)
     if [ ! -c "$TTY" ] || [ -z "$IF" ]; then
-        note "modem $1: waiting for the AT port and the network interface"
+        note "modem $1: waiting for the AT port and the network interface" starting
         sleep 2
         continue
     fi
     start_reader
     [ $(stat -c %s $OUT) -gt 65536 ] && : > $OUT
     if ! at AT | grep -q '^OK'; then
-        note "modem $1: no answer on $TTY"
+        note "modem $1: no answer on $TTY" starting
         sleep 2
         continue
     fi
 
     if ! fcc_unlock; then
-        note "FCC unlock failed"
+        note "FCC unlock failed" fcc_failed
         sleep 10
         continue
     fi
+    cell
     if ! sim_ready; then
+        CANDS=
         sleep 5
         continue
     fi
     if ! registered; then
-        note "not registered"
+        note "not registered" searching
         sleep 5
         continue
     fi
-    if ! connect; then
-        note "data connection failed"
-        sleep 5
+    if [ -z "$CANDS" ]; then
+        CANDS=$(apn_candidates | awk '!seen[$0]++')
+        CAND_N=1
+    fi
+    CAND=$(echo "$CANDS" | sed -n "${CAND_N}p")
+    if ! connect "$CAND"; then
+        note "APN ${CAND%%"|"*} refused" connecting
+        CAND_N=$((CAND_N + 1))
+        if [ $CAND_N -gt $(echo "$CANDS" | wc -l) ]; then
+            note "data connection failed with every APN" no_apn
+            CANDS=
+            sleep 30
+        fi
+        sleep 2
         continue
     fi
 
@@ -225,15 +308,16 @@ while true; do
         [ "$GW" = "$IP" ] && GW=${IP%.*}.254
         DNS=$(at AT+CGCONTRDP=1 | awk -F'"' '/^\+CGCONTRDP: 1,/ { print $8, $10; exit }')
         if R=$($CONFIG $IF $IP/24 $GW ${DNS:-8.8.8.8} 2>&1); then
-            note "$IF up: $IP gateway $GW DNS $DNS"
+            note "$IF up: $IP gateway $GW DNS $DNS" connected
             setprop persist.q6a.wwan.iface $IF
             CUR_IF=$IF
             CUR_IP=$IP
         else
-            note "EthernetService refused $IF: $(echo $R | tail -c 200)"
+            note "EthernetService refused $IF: $(echo $R | tail -c 200)" no_apn
         fi
     elif [ -z "$IP" ]; then
-        note "connected, but no address"
+        note "connected, but no address" connecting
     fi
-    sleep 10
+    [ -n "$IP" ] && [ "$IF $IP" = "$CUR_IF $CUR_IP" ] && state connected
+    sleep 5
 done

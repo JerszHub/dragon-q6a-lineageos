@@ -3,7 +3,8 @@
 //
 // USB cellular modem support: q6a_wwan.sh brings a Fibocom FM350-GL up as an Ethernet
 // network, WwanConfig hands its address to EthernetService, and the overlay marks the
-// link as metered.
+// link as metered. ApnLookup finds the SIM card's APNs in the world APN list, which a
+// Wi-Fi only product does not otherwise ship.
 
 java_library {
     name: "q6a-wwan",
@@ -41,5 +42,6 @@ phony {
         "q6a_wwan.sh",
         "q6a_wwan.rc",
         "Q6AWwanConnectivityOverlay",
+        "apns-conf.xml",
     ],
 }

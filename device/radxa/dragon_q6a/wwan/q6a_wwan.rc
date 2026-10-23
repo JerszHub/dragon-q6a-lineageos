@@ -9,10 +9,21 @@ on post-fs-data
 
 on property:sys.boot_completed=1
     start q6a_wwan
+    start q6a_wwan_status
 
 service q6a_wwan /system/bin/sh /system_ext/bin/q6a_wwan.sh
     class main
     user root
     group root
+    disabled
+    seclabel u:r:su:s0
+
+# The status notification with the modem's state and signal. See WwanStatus.java. It posts
+# as the system: NotificationManagerService keeps the channels of "android" under the
+# system uid, so a channel created as root would not be found.
+service q6a_wwan_status /system/bin/app_process -Djava.class.path=/system_ext/framework/q6a-wwan.jar /system/bin org.lineageos.wwan.WwanStatus
+    class main
+    user system
+    group system
     disabled
     seclabel u:r:su:s0
