@@ -4,6 +4,9 @@
 # Q6A: bring a USB cellular modem up as an Android Ethernet network. See q6a_wwan.sh.
 # EthernetService has to be running before the configuration can be handed to it.
 
+on post-fs-data
+    mkdir /data/misc/q6a_wwan 0700 root root
+
 on property:sys.boot_completed=1
     start q6a_wwan
 

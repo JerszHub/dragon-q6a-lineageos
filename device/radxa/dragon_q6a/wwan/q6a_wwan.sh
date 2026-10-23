@@ -14,9 +14,13 @@
 #
 # Only the AT port is opened. The modem's other serial ports (logging, diagnostics) are
 # reported to crash its firmware when touched.
+#
+# A SIM card with a PIN is unlocked with the PIN stored in $PIN_FILE (root only, unlike a
+# system property, which apps can read).
 
 TAG=q6a_wwan
 OUT=/dev/q6a_wwan.at
+PIN_FILE=/data/misc/q6a_wwan/pin
 CONFIG="/system/bin/app_process -Djava.class.path=${Q6A_WWAN_JAR:-/system_ext/framework/q6a-wwan.jar} /system/bin org.lineageos.wwan.WwanConfig"
 # Lenovo's FCC unlock key. Modules taken from Lenovo laptops keep the radio off at every
 # power-up until the host answers AT+GTFCCLOCKGEN, as ModemManager's fcc-unlock does.
@@ -50,9 +54,14 @@ start_reader() {
     [ -n "$READER" ] && kill -0 $READER 2>/dev/null && [ "$READER_TTY" = "$TTY" ] && return
     stop_reader
     : > $OUT
+    chmod 600 $OUT
     cat $TTY >> $OUT 2>/dev/null &
     READER=$!
     READER_TTY=$TTY
+    # The port opens in canonical mode with echo on: the tty would send everything the
+    # modem says back to it, including the echo of each command, which the modem then runs
+    # a second time.
+    stty -F $TTY raw -echo
 }
 
 stop_reader() {
@@ -81,6 +90,39 @@ fcc_unlock() {
     hash=$(printf "%08x$FCC_KEY" $challenge | xxd -r -p | sha256sum | cut -c1-8)
     at "AT+GTFCCLOCKVER=$(printf %d 0x$hash)" | grep -q 'GTFCCLOCKVER: 1' || return 1
     log "FCC lock released"
+}
+
+# Unlock the SIM card if it asks for a PIN. A rejected PIN is deleted straight away, so a
+# wrong one costs a single attempt and can never use up the SIM's attempts and lock it
+# behind the PUK.
+sim_ready() {
+    local out state
+    out=$(at AT+CPIN?)
+    state=$(echo "$out" | sed -n 's/^+CPIN: //p')
+    case "$state" in
+        READY)
+            return 0 ;;
+        "SIM PIN")
+            if [ ! -s $PIN_FILE ]; then
+                note "the SIM card needs a PIN, write it to $PIN_FILE"
+                return 1
+            fi
+            if at "AT+CPIN=\"$(cat $PIN_FILE)\"" 10 | grep -q '^OK'; then
+                log "SIM card unlocked"
+                return 0
+            fi
+            rm -f $PIN_FILE
+            log "the SIM card rejected the PIN; $PIN_FILE deleted"
+            ;;
+        "")
+            case "$out" in
+                *"CME ERROR: 10"*) note "no SIM card" ;;
+                *) note "SIM card not ready" ;;
+            esac ;;
+        *)
+            note "SIM card locked: $state" ;;
+    esac
+    return 1
 }
 
 registered() {
@@ -158,6 +200,10 @@ while true; do
     if ! fcc_unlock; then
         note "FCC unlock failed"
         sleep 10
+        continue
+    fi
+    if ! sim_ready; then
+        sleep 5
         continue
     fi
     if ! registered; then
