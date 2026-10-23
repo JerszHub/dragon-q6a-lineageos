@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <!-- The Fibocom FM350-GL presents its RNDIS interface with this fixed MAC address. Give
+         it the default Ethernet capabilities minus NOT_METERED (11): INTERNET (12),
+         NOT_RESTRICTED (13), TRUSTED (14), NOT_VPN (15), NOT_VCN_MANAGED (28) and
+         NOT_BANDWIDTH_CONSTRAINED (37), so that Android treats the cellular link as metered.
+         The list replaces the defaults rather than extending them, and without 37 the network
+         satisfies no default request, so it is never brought up. -->
+    <string-array translatable="false" name="config_ethernet_interfaces">
+        <item>00:00:11:12:13:14;12,13,14,15,28,37;;</item>
+    </string-array>
+</resources>

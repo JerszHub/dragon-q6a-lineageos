@@ -1,0 +1,45 @@
+// SPDX-FileCopyrightText: 2026 The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+// USB cellular modem support: q6a_wwan.sh brings a Fibocom FM350-GL up as an Ethernet
+// network, WwanConfig hands its address to EthernetService, and the overlay marks the
+// link as metered.
+
+java_library {
+    name: "q6a-wwan",
+    srcs: ["src/**/*.java"],
+    sdk_version: "system_current",
+    installable: true,
+    system_ext_specific: true,
+}
+
+sh_binary {
+    name: "q6a_wwan.sh",
+    src: "q6a_wwan.sh",
+    system_ext_specific: true,
+}
+
+prebuilt_etc {
+    name: "q6a_wwan.rc",
+    src: "q6a_wwan.rc",
+    sub_dir: "init",
+    system_ext_specific: true,
+}
+
+runtime_resource_overlay {
+    name: "Q6AWwanConnectivityOverlay",
+    manifest: "overlay/AndroidManifest.xml",
+    resource_dirs: ["overlay/res"],
+    sdk_version: "current",
+    vendor: true,
+}
+
+phony {
+    name: "q6a_wwan",
+    required: [
+        "q6a-wwan",
+        "q6a_wwan.sh",
+        "q6a_wwan.rc",
+        "Q6AWwanConnectivityOverlay",
+    ],
+}

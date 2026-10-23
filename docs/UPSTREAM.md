@@ -1,6 +1,6 @@
 # Upstream checklist
 
-Last updated: 2026-10-06.
+Last updated: 2026-10-23.
 
 Two different bars apply, and most of this list only matters for the second one:
 
@@ -57,8 +57,8 @@ around "what the stock OS supported".
 
 - `pd_ignore_unused clk_ignore_unused` on the command line hides a probe-order problem between
   `genpd` and MDSS.
-- The DP lane fix in the DT forces the QMP PHY into DP-only mode, which costs USB3 SuperSpeed.
-  The port needs a second endpoint for USB3.
+- The cellular modem service `q6a_wwan` runs with `seclabel u:r:su:s0`, which only exists on
+  userdebug builds. It needs its own SELinux domain.
 - The Wi-Fi/Bluetooth modules are loaded by an init service instead of `modules.load` and
   `modules.alias`.
 - Local patches: the `.blobs` directory suffix in `MultifileBlobCache` (Genshin Impact deletes

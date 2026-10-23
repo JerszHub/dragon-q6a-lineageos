@@ -211,7 +211,7 @@ index b02da95..b721ab8 100644
 +    vendor: true,
 +}
 diff --git a/device.mk b/device.mk
-index f65bfc7..7edf467 100644
+index f65bfc7..21aa96e 100644
 --- a/device.mk
 +++ b/device.mk
 @@ -20,6 +20,9 @@ TARGET_SCREEN_HEIGHT := 300
@@ -237,7 +237,7 @@ index f65bfc7..7edf467 100644
  
  # Graphics allocator
  PRODUCT_PACKAGES += \
-@@ -184,9 +191,45 @@ PRODUCT_SOONG_NAMESPACES += \
+@@ -184,9 +191,50 @@ PRODUCT_SOONG_NAMESPACES += \
      $(DEVICE_PATH) \
      kernel/mainline/configs
  
@@ -269,6 +269,11 @@ index f65bfc7..7edf467 100644
 +    q6a_install_gapps.sh \
 +    q6a_tuning.rc \
 +    q6a_perf.sh
++
++# Q6A: USB cellular modem (Fibocom FM350-GL) as an Ethernet network.
++# See device/radxa/dragon_q6a/wwan.
++PRODUCT_PACKAGES += \
++    q6a_wwan
 +
  # USB
 +# Q6A: ship the gadget stub ONLY when no real HAL has been selected.

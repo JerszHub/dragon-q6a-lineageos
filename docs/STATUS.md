@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-11.
+Last updated: 2026-10-23.
 
 ## Verified on hardware
 
@@ -20,7 +20,8 @@ Last updated: 2026-10-11.
 | NVMe | untested | `nvme.ko` is in the image |
 | HW video codecs | works | iris (Linux 7.2) with the gen2 firmware `vpu20_p1_gen2_s6.mbn`; the gen1 `vpu20_p1.mbn` crashes the firmware as soon as decoding starts. Decoders `c2.v4l2.{avc,hevc,vp9}.decoder` play smoothly with no corrupt frames; `c2.v4l2.avc.encoder` records 1920x1080 with `screenrecord` and the file plays back clean. Enabled by `vendor.prop` on the ESP. Needs patches 0017–0020; the output-delay change (0018) is a stopgap |
 | I²C / SPI | fixable | `qcom/qcm6490/qupv3fw.elf` from upstream linux-firmware binds all three I²C and both SPI controllers (tested 2026-10-06 by loading it at runtime) |
-| USB3 SuperSpeed | broken by design | PHY forced to DP-only, see README |
+| USB3 SuperSpeed | works | Blue port: `a600000.usb` gives a 5000 Mb/s root hub, the FM350-GL enumerates at 5000 Mb/s; DP keeps working (patch 0022) |
+| Cellular modem (USB) | works | Fibocom FM350-GL in a USB-to-M.2 adapter: `q6a_wwan` unlocks the radio, sets the APN and hands the address to EthernetService; the network validates, becomes the default and is metered. T-Mobile PL, LTE, 69/24 Mb/s on the blue port. adb over `eth0` survives |
 | MIPI-DSI | not started | |
 
 Note that `Trebuchet` does not exist in LineageOS 24 — `Launcher3QuickStep` is the
@@ -80,7 +81,8 @@ These work, but they are workarounds rather than fixes, and each is tracked for 
 - **`prebuilts/misc/protobuf_vendorcompat/Android.bp` is disabled.** Its modules declare
   `srcs` only under `android_arm` (32-bit) with no arm64, which breaks an arm64-only build.
   The file comes from AOSP, not LineageOS.
-- **USB3 SuperSpeed is sacrificed** for DP; see the README.
+- **The cellular modem service runs as root in the `su` domain** (`q6a_wwan`). It needs its
+  own SELinux domain with access to the modem's tty and to the ethernet service.
 
 ### Do not load `aic_btusb`
 

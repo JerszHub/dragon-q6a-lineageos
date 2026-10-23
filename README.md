@@ -42,6 +42,10 @@ Each item below was verified on hardware, not inferred from logs alone.
 - **Hardware video codecs** — iris decodes H.264, HEVC and VP9 and encodes H.264
   (`screenrecord`); 1080p H.264 playback takes 8% CPU against 22% with the software decoder
 - **adb** — over TCP
+- **USB 3.0 SuperSpeed** — the blue port runs at 5000 Mb/s next to DisplayPort
+- **USB cellular modem** — a Fibocom FM350-GL on a USB adapter is plug and play: Android
+  brings it up as a metered network with any operator's SIM (LTE, about 70/24 Mb/s in a
+  short test on the blue port)
 
 ## What does not work yet
 
@@ -50,7 +54,6 @@ Each item below was verified on hardware, not inferred from logs alone.
 - **Bluetooth audio (A2DP)** — the profile is active in the framework, untested
 - **NVMe** — driver is in the image, untested on this branch
 - **I²C / SPI** — the board's `qupv3fw.elf` is missing
-- **USB3 SuperSpeed** — the QMP PHY runs in DP-only mode (see below)
 - **MIPI-DSI**
 
 ## The display fix
@@ -85,8 +88,9 @@ Before the fix the link fell back to RBR, hit maximum voltage level and produced
 This misled us for a week because AUX is a separate differential pair and is not affected by
 the lane swap — EDID read correctly the whole time, so the panel looked perfectly healthy.
 
-Side effect: the PHY ends up in `QMPPHY_MODE_DP_ONLY`, which costs USB3 SuperSpeed. The
-proper fix is a second endpoint with `data-lanes = <2 3>` for USB3; that is not done yet.
+With only this endpoint the PHY ends up in `QMPPHY_MODE_DP_ONLY` and the blue USB 3.0 port
+does not come up. Patch 0022 adds a second endpoint, `data-lanes = <2 3>`, for USB3, and the
+PHY then runs USB3 and DP together.
 
 ## Installing
 

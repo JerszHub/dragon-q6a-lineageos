@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+# Q6A: bring a USB cellular modem up as an Android Ethernet network. See q6a_wwan.sh.
+# EthernetService has to be running before the configuration can be handed to it.
+
+on property:sys.boot_completed=1
+    start q6a_wwan
+
+service q6a_wwan /system/bin/sh /system_ext/bin/q6a_wwan.sh
+    class main
+    user root
+    group root
+    disabled
+    seclabel u:r:su:s0

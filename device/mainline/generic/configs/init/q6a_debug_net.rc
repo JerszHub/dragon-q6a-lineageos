@@ -24,6 +24,6 @@ service q6a_debug_net /system/bin/sh /vendor/bin/q6a_debug_net.sh
     class core
     user root
     group root
-    # Not oneshot: the script keeps watching the configuration for about four minutes.
+    # Not oneshot: the script keeps watching the configuration for as long as the system runs.
     disabled
     seclabel u:r:su:s0

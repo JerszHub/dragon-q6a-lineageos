@@ -39,17 +39,30 @@ if [ "$(/system/bin/getprop service.adb.tcp.port)" != "5555" ]; then
 fi
 
 # netd is running now (there is no "stop" any more), so it will manage the interfaces.
-# For about four and a half minutes, make sure our fixed address survives its work.
+# Keep our fixed address and the IPv6 link-local address alive for as long as the system
+# runs: every 3 s for the first four and a half minutes, then every 10 s. EthernetService
+# tears the eth0 network down whenever a better network becomes the default (a USB modem
+# with internet, while this cable has none); IpClient then removes the addresses, sets
+# disable_ipv6 and netd drops the eth0 routing table, which held the link-local route.
+# That cuts adb off until the cable is replugged.
 i=0
-while [ $i -lt 90 ]; do
-    /system/bin/sleep 3
+while true; do
+    [ $i -lt 90 ] && /system/bin/sleep 3 || /system/bin/sleep 10
+    [ "$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)" = "1" ] &&
+        echo 0 > /proc/sys/net/ipv6/conf/eth0/disable_ipv6
     /system/bin/ip address show eth0 | /system/bin/grep -q "192.168.137.50" || {
+        /system/bin/ip link set eth0 up
         /system/bin/ip address add 192.168.137.50/24 dev eth0
         /system/bin/ip address add 192.168.1.100/24 dev eth0
-        /system/bin/ip rule add from all lookup main
     }
+    # Android puts the link-local prefix route in the per-interface table, not in main, and
+    # its IPv6 rules never consult main. adb runs over the IPv6 link-local address, so both
+    # the route and an IPv6 rule are needed once netd has dropped the eth0 table.
+    /system/bin/ip -6 route show table main | /system/bin/grep -q "^fe80::/64 dev eth0" ||
+        /system/bin/ip -6 route add fe80::/64 dev eth0 table main
+    /system/bin/ip rule show | /system/bin/grep -q "from all lookup main" ||
+        /system/bin/ip rule add from all lookup main
+    /system/bin/ip -6 rule show | /system/bin/grep -q "from all lookup main" ||
+        /system/bin/ip -6 rule add from all lookup main
     i=$((i + 1))
 done
-
-/system/bin/ip address show eth0
-/system/bin/ip rule show
