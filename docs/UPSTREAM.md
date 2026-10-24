@@ -27,6 +27,7 @@ around "what the stock OS supported".
 | Device tree structure | Builds as `lineage_Generic_arm64` | Own codename and device tree with `lineage_<codename>.mk` |
 | Device tree structure | `lineage.dependencies` would need `radxa-pkg/aic8800` | Wi-Fi/Bluetooth driver source must live in a repository LineageOS can host |
 | Proprietary files extraction | ADSP firmware, GPU zap shader, audio topology and AIC8800 firmware are copied by hand | Upstream linux-firmware already carries Radxa's Q6A files (`qcom/qcs6490/radxa/dragon-q6a/`: ADSP, CDSP, topology), the GPU zap shader (`qcom/qcm6490/a660_zap.mbn`), the video firmware and the QUP firmware, all redistributable. Take them from there by updating `external/linux-firmware-mainline`; only the AIC8800 firmware still needs a source with documented rights |
+| Wi-Fi HAL | No `android.hardware.wifi` service; only wpa_supplicant and hostapd | `SoftApManager` sets the country code through the vendor HAL before it starts a 5 GHz access point, so without one the hotspot is limited to 2.4 GHz. Port AIC's HAL (`wifi_hal_for_android13`, the driver has a vendor command to set the country). Load `aic8800_fdrv` with `custregd=0`, so that it follows cfg80211 regulatory instead of its own permissive rules, and set `config_wifiDriverSupportedNl80211RegChangedEvent`. The country comes from access points' country IE, or from the cellular modem's network. The chip has no 6 GHz |
 | Kernel (clocks) | The tree carries an experimental GPU OPP table with 840/900 MHz points | Must match the SoC vendor's binning. Kept aside as an experimental patch, not shipped |
 
 ## 2. Debug and tuning features in the default image
@@ -45,7 +46,7 @@ around "what the stock OS supported".
 | Audio, 3.5 mm jack | MUST (stock supports it) | Worked on 2026-09-26; recheck |
 | Audio over HDMI | MUST if stock supports it | Declared in the DT, never verified |
 | Bluetooth audio (A2DP) | MUST | Untested |
-| Wi-Fi hotspot | MUST (the driver offers AP and P2P-GO) | An access point starts and broadcasts from the framework (`cmd wifi start-softap`); a client getting internet through it is untested |
+| Wi-Fi hotspot | MUST (the driver offers AP and P2P-GO) | Works on 2.4 GHz: a phone browses through it, with the cellular modem or Ethernet as upstream (2026-10-24). 5 GHz is refused, see the Wi-Fi HAL item in section 1 |
 | Wi-Fi and Bluetooth MAC addresses | MUST match stock | Read from the chip (`addr_assign_type=0`), so almost certainly identical to RadxaOS; not compared directly |
 | microSD slot | MUST | Both SDHCI hosts probe; no card was inserted. `/data` lived on a microSD card during bring-up, so the slot works; recheck with a card |
 | Hardware video codecs | MUST if the stock OS supports them | Work: H.264, HEVC and VP9 decoding and H.264 encoding through iris and the V4L2 Codec2 HAL. Upstream work left: the HAL should report `C2PortActualDelayTuning` from the driver's minimum buffer count instead of the fixed output delay of 20 (0018), and frames iris returns with `V4L2_BUF_FLAG_ERROR` and timestamp 0 leave their work items uncompleted |
