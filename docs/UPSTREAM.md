@@ -49,7 +49,7 @@ around "what the stock OS supported".
 | Wi-Fi hotspot | MUST (the driver offers AP and P2P-GO) | Works on 2.4 GHz: a phone browses through it, with the cellular modem or Ethernet as upstream (2026-10-24). 5 GHz is refused, see the Wi-Fi HAL item in section 1 |
 | Wi-Fi and Bluetooth MAC addresses | MUST match stock | Read from the chip (`addr_assign_type=0`), so almost certainly identical to RadxaOS; not compared directly |
 | microSD slot | MUST | Both SDHCI hosts probe; no card was inserted. `/data` lived on a microSD card during bring-up, so the slot works; recheck with a card |
-| Hardware video codecs | MUST if the stock OS supports them | Work: H.264, HEVC and VP9 decoding and H.264 encoding through iris and the V4L2 Codec2 HAL. Upstream work left: the HAL should report `C2PortActualDelayTuning` from the driver's minimum buffer count instead of the fixed output delay of 20 (0018), and frames iris returns with `V4L2_BUF_FLAG_ERROR` and timestamp 0 leave their work items uncompleted |
+| Hardware video codecs | MUST if the stock OS supports them | Work: H.264, HEVC and VP9 decoding and H.264 encoding through iris and the V4L2 Codec2 HAL. The HAL raises the output delay at runtime from the driver's minimum buffer count (0018, tested 2026-10-24). Upstream work left: send 0018 upstream, and frames iris returns with `V4L2_BUF_FLAG_ERROR` and timestamp 0 leave their work items uncompleted |
 | Camera | MUST if the stock OS supports it | CCI is disabled in the DT and no sensor is attached. Needs agreement with the Directors, given the non-Android stock OS |
 | MIPI-DSI | SHOULD | Not started |
 | USB/Bluetooth tethering, GSI boot | SHOULD | Untested |

@@ -1,0 +1,202 @@
+diff --git a/components/DecodeComponent.cpp b/components/DecodeComponent.cpp
+index 00880d7..fa9fad2 100644
+--- a/components/DecodeComponent.cpp
++++ b/components/DecodeComponent.cpp
+@@ -12,6 +12,7 @@
+ #include <linux/videodev2.h>
+ #include <stdint.h>
+ 
++#include <algorithm>
+ #include <memory>
+ 
+ #include <C2.h>
+@@ -175,7 +176,8 @@ c2_status_t DecodeComponent::start() {
+ 
+ std::unique_ptr<VideoFramePool> DecodeComponent::getVideoFramePool(const ui::Size& size,
+                                                                    HalPixelFormat pixelFormat,
+-                                                                   size_t numBuffers) {
++                                                                   size_t numBuffers,
++                                                                   uint32_t outputDelay) {
+     ALOGV("%s()", __func__);
+     ALOG_ASSERT(mDecoderTaskRunner->RunsTasksInCurrentSequence());
+ 
+@@ -194,6 +196,17 @@ std::unique_ptr<VideoFramePool> DecodeComponent::getVideoFramePool(const ui::Siz
+         return nullptr;
+     }
+ 
++    // The framework lets the component hold only as many output buffers as the output delay
++    // allows. A device that keeps more of them queued than the declared delay would wait forever
++    // for a buffer it cannot dequeue, so raise the delay.
++    const uint32_t declaredDelay = DecodeInterface::getOutputDelay(*mIntfImpl->getVideoCodec());
++    if (outputDelay > std::max(declaredDelay, mOutputDelay)) {
++        ALOGI("Raising the output delay from %u to %u", std::max(declaredDelay, mOutputDelay),
++              outputDelay);
++        mOutputDelay = outputDelay;
++        mOutputDelayChanged = true;
++    }
++
+     // Get block pool ID configured from the client.
+     auto poolId = mIntfImpl->getBlockPoolId();
+     ALOGI("Using C2BlockPool ID = %" PRIu64 " for allocating output buffers", poolId);
+@@ -237,6 +250,8 @@ void DecodeComponent::stopTask() {
+ 
+     reportAbandonedWorks();
+     mIsDraining = false;
++    mOutputDelay = 0;
++    mOutputDelayChanged = false;
+ 
+     releaseTask();
+ }
+@@ -671,6 +686,11 @@ bool DecodeComponent::reportWork(std::unique_ptr<C2Work> work) {
+         const std::string atraceLabel = ::base::StringPrintf("#%u C2Work", mDebugStreamId);
+         ATRACE_ASYNC_END(atraceLabel.c_str(), work->input.ordinal.frameIndex.peekull());
+     }
++    if (mOutputDelayChanged && !work->worklets.empty()) {
++        work->worklets.front()->output.configUpdate.push_back(
++                std::make_unique<C2PortDelayTuning::output>(mOutputDelay));
++        mOutputDelayChanged = false;
++    }
+     std::list<std::unique_ptr<C2Work>> finishedWorks;
+     finishedWorks.emplace_back(std::move(work));
+     mListener->onWorkDone_nb(weak_from_this(), std::move(finishedWorks));
+diff --git a/components/include/v4l2_codec2/components/DecodeComponent.h b/components/include/v4l2_codec2/components/DecodeComponent.h
+index 27905c7..cd68fc0 100644
+--- a/components/include/v4l2_codec2/components/DecodeComponent.h
++++ b/components/include/v4l2_codec2/components/DecodeComponent.h
+@@ -72,7 +72,7 @@ protected:
+     // Get the buffer pool.
+     std::unique_ptr<VideoFramePool> getVideoFramePool(const ui::Size& size,
+                                                       HalPixelFormat pixelFormat,
+-                                                      size_t numBuffers);
++                                                      size_t numBuffers, uint32_t outputDelay);
+     // Detect and report works with no-show frame, only used at VP8 and VP9.
+     void detectNoShowFrameWorksAndReportIfFinished(const C2WorkOrdinalStruct& currOrdinal);
+ 
+@@ -121,6 +121,11 @@ protected:
+     // reportAbandonedWorks() (drain is cancelled and works are abandoned).
+     bool mIsDraining = false;
+ 
++    // The output delay the decoder needs, once it is larger than the one the interface declares.
++    // It is sent to the framework with the next reported work while |mOutputDelayChanged| is set.
++    uint32_t mOutputDelay = 0;
++    bool mOutputDelayChanged = false;
++
+     // The mutex lock to synchronize start/stop/reset/release calls.
+     std::mutex mStartStopLock;
+ 
+diff --git a/components/include/v4l2_codec2/components/VideoDecoder.h b/components/include/v4l2_codec2/components/VideoDecoder.h
+index 3e3fec4..facc405 100644
+--- a/components/include/v4l2_codec2/components/VideoDecoder.h
++++ b/components/include/v4l2_codec2/components/VideoDecoder.h
+@@ -26,8 +26,10 @@ public:
+     };
+     static const char* DecodeStatusToString(DecodeStatus status);
+ 
++    // |outputDelay| is the number of output buffers the decoder holds before it outputs a frame.
+     using GetPoolCB = ::base::RepeatingCallback<std::unique_ptr<VideoFramePool>(
+-            const ui::Size& size, HalPixelFormat pixelFormat, size_t numOutputBuffers)>;
++            const ui::Size& size, HalPixelFormat pixelFormat, size_t numOutputBuffers,
++            uint32_t outputDelay)>;
+     using DecodeCB = ::base::OnceCallback<void(DecodeStatus)>;
+     using OutputCB = ::base::RepeatingCallback<void(std::unique_ptr<VideoFrame>)>;
+     using ErrorCB = ::base::RepeatingCallback<void()>;
+diff --git a/v4l2/V4L2Decoder.cpp b/v4l2/V4L2Decoder.cpp
+index 0939488..caf9e0c 100644
+--- a/v4l2/V4L2Decoder.cpp
++++ b/v4l2/V4L2Decoder.cpp
+@@ -48,6 +48,9 @@ void syncDmaBufForDevice(int fd) {
+ 
+ // Extra buffers for transmitting in the whole video pipeline.
+ constexpr size_t kNumExtraOutputBuffers = 4;
++// Output buffers the decoder holds on top of those the device needs queued. Matches the extra
++// buffers V4L2DecodeComponent budgets for the decoder.
++constexpr uint32_t kNumHeldOutputBuffers = 2;
+ 
+ bool waitForDRC(const C2ConstLinearBlock& input, std::optional<VideoCodec> codec) {
+     C2ReadView view = input.map().get();
+@@ -312,11 +315,13 @@ bool V4L2Decoder::startOutputQueue(size_t minOutputBuffersCount, enum v4l2_memor
+     ALOG_ASSERT(mTaskRunner->RunsTasksInCurrentSequence());
+ 
+     const std::optional<struct v4l2_format> format = getFormatInfo();
+-    std::optional<size_t> numOutputBuffers = getNumOutputBuffers();
+-    if (!format || !numOutputBuffers) {
++    const std::optional<size_t> minNumDeviceBuffers = getMinNumOutputBuffers();
++    if (!format || !minNumDeviceBuffers) {
+         return false;
+     }
+-    *numOutputBuffers = std::max(*numOutputBuffers, minOutputBuffersCount);
++    mOutputDelay = *minNumDeviceBuffers + kNumHeldOutputBuffers;
++    const size_t numOutputBuffers =
++            std::max(*minNumDeviceBuffers + kNumExtraOutputBuffers, minOutputBuffersCount);
+ 
+     if (mOutputQueue->isStreaming()) {
+         mOutputQueue->streamoff();
+@@ -337,7 +342,7 @@ bool V4L2Decoder::startOutputQueue(size_t minOutputBuffersCount, enum v4l2_memor
+     mCodedSize.set(adjustedFormat->fmt.pix_mp.width, adjustedFormat->fmt.pix_mp.height);
+     mVisibleRect = getVisibleRect(mCodedSize);
+ 
+-    ALOGI("Need %zu output buffers. coded size: %s, visible rect: %s", *numOutputBuffers,
++    ALOGI("Need %zu output buffers. coded size: %s, visible rect: %s", numOutputBuffers,
+           toString(mCodedSize).c_str(), toString(mVisibleRect).c_str());
+     if (isEmpty(mCodedSize)) {
+         ALOGE("Failed to get resolution from V4L2 driver.");
+@@ -351,7 +356,7 @@ bool V4L2Decoder::startOutputQueue(size_t minOutputBuffersCount, enum v4l2_memor
+     }
+ 
+     const size_t adjustedNumOutputBuffers =
+-            mOutputQueue->allocateBuffers(*numOutputBuffers, memory);
++            mOutputQueue->allocateBuffers(numOutputBuffers, memory);
+     if (adjustedNumOutputBuffers == 0) {
+         ALOGE("Failed to allocate output buffer.");
+         return false;
+@@ -786,7 +791,8 @@ bool V4L2Decoder::changeResolution() {
+                                           ? HalPixelFormat::YCBCR_P010
+                                           : HalPixelFormat::YCBCR_420_888;
+     mVideoFramePool =
+-            mGetPoolCb.Run(mCodedSize, outputFormat, mOutputQueue->allocatedBuffersCount());
++            mGetPoolCb.Run(mCodedSize, outputFormat, mOutputQueue->allocatedBuffersCount(),
++                           mOutputDelay);
+     if (!mVideoFramePool) {
+         ALOGE("Failed to get block pool with size: %s", toString(mCodedSize).c_str());
+         return false;
+@@ -934,7 +940,7 @@ void V4L2Decoder::onVideoFrameReady(
+     tryFetchVideoFrame();
+ }
+ 
+-std::optional<size_t> V4L2Decoder::getNumOutputBuffers() {
++std::optional<size_t> V4L2Decoder::getMinNumOutputBuffers() {
+     ALOGV("%s()", __func__);
+     ALOG_ASSERT(mTaskRunner->RunsTasksInCurrentSequence());
+ 
+@@ -947,7 +953,7 @@ std::optional<size_t> V4L2Decoder::getNumOutputBuffers() {
+     }
+     ALOGV("%s() V4L2_CID_MIN_BUFFERS_FOR_CAPTURE returns %u", __func__, ctrl.value);
+ 
+-    return ctrl.value + kNumExtraOutputBuffers;
++    return ctrl.value;
+ }
+ 
+ std::optional<struct v4l2_format> V4L2Decoder::getFormatInfo() {
+diff --git a/v4l2/include/v4l2_codec2/v4l2/V4L2Decoder.h b/v4l2/include/v4l2_codec2/v4l2/V4L2Decoder.h
+index c825f74..20a2255 100644
+--- a/v4l2/include/v4l2_codec2/v4l2/V4L2Decoder.h
++++ b/v4l2/include/v4l2_codec2/v4l2/V4L2Decoder.h
+@@ -93,7 +93,8 @@ private:
+     void tryFetchVideoFrame();
+     void onVideoFrameReady(std::optional<VideoFramePool::FrameWithBlockId> frameWithBlockId);
+ 
+-    std::optional<size_t> getNumOutputBuffers();
++    // The number of output buffers the device needs queued to make progress.
++    std::optional<size_t> getMinNumOutputBuffers();
+     std::optional<struct v4l2_format> getFormatInfo();
+     Rect getVisibleRect(const ui::Size& codedSize);
+     bool sendV4L2DecoderCmd(bool start);
+@@ -132,6 +133,8 @@ private:
+     size_t mNextInputBufferId = 0;
+ 
+     size_t mMinNumOutputBuffers = 0;
++    // The output delay this decoder needs with the current output format.
++    uint32_t mOutputDelay = 0;
+     GetPoolCB mGetPoolCb;
+     OutputCB mOutputCb;
+     DecodeCB mDrainCb;
