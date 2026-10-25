@@ -63,11 +63,16 @@ find_modem() {
 start_reader() {
     [ -n "$READER" ] && kill -0 $READER 2>/dev/null && [ "$READER_TTY" = "$TTY" ] && return
     stop_reader
+    [ -c "$TTY" ] || return 1
     : > $OUT
     chmod 600 $OUT
     cat $TTY >> $OUT 2>/dev/null &
     READER=$!
     READER_TTY=$TTY
+    # Commands go through a descriptor opened once: "> $TTY" would create a regular file
+    # if the modem dropped the port in the meantime, and ueventd could then no longer
+    # create the device node there.
+    exec 4> $TTY
     # The port opens in canonical mode with echo on: the tty would send everything the
     # modem says back to it, including the echo of each command, which the modem then runs
     # a second time.
@@ -77,13 +82,14 @@ start_reader() {
 stop_reader() {
     [ -n "$READER" ] && kill $READER 2>/dev/null && wait $READER 2>/dev/null
     READER=
+    exec 4>&-
 }
 
 # at <command> [timeout in s]: send one command, print the response without the echo.
 at() {
     local start n=0 limit=$(( ${2:-5} * 10 ))
     start=$(( $(stat -c %s $OUT) + 1 ))
-    printf '%s\r' "$1" > $TTY
+    { printf '%s\r' "$1" >&4; } 2>/dev/null
     while [ $n -lt $limit ] &&
             ! tail -c +$start $OUT | grep -qE '^(OK|ERROR|\+CME ERROR)'; do
         sleep 0.1
@@ -254,6 +260,12 @@ while true; do
     fi
     TTY=/dev/$(ls $1:1.$2 2>/dev/null | grep -m 1 '^ttyUSB')
     IF=$(ls $1:1.0/net 2>/dev/null)
+    # Older versions wrote to the port by name and could leave a regular file in place of
+    # the node while the modem re-enumerated. Remove it and ask ueventd for the node again.
+    if [ -f "$TTY" ]; then
+        rm -f "$TTY"
+        echo add > /sys/class/tty/${TTY#/dev/}/uevent
+    fi
     if [ ! -c "$TTY" ] || [ -z "$IF" ]; then
         note "modem $1: waiting for the AT port and the network interface" starting
         sleep 2
