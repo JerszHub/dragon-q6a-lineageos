@@ -28,6 +28,10 @@ That is all. On the next boot the board unpacks the package, builds `product.img
 `system_ext.img` next to the platform images, and reboots once more. Google Apps are part of
 the system from then on.
 
+Tested on hardware on 2026-10-25 with `MindTheGapps-17.0.0-arm64-20260915_222140`: the board
+built both images in about 15 seconds, the Google setup wizard ran, and the Play Store works
+without registering the device on Google's uncertified-device page.
+
 ## It wipes your data, and it has to
 
 **The third step erases everything on the device.** Google Apps must be present before the
@@ -41,8 +45,10 @@ The package installs into both `system/product` and `system/system_ext`, and
 `GoogleServicesFramework` and `SetupWizard` live in the second one — one image is not
 enough. Mounting an image over `/product` replaces that directory rather than adding to it,
 so each image also carries the platform's own content for that partition. Together they come
-to roughly 2.2 GB, against about 2.4 GB free on the 4 GB boot partition. The board checks
-before it copies anything and changes nothing if the room is not there.
+to roughly 2.2 GB, against about 2.4 GB free on the 4 GB boot partition when it holds only
+the current platform images. That leaves under 100 MB, so platform updates have to overwrite
+the images in place. The board checks before it copies anything and changes nothing if the
+room is not there.
 
 ## If something goes wrong
 
@@ -54,6 +60,15 @@ and a mismatched platform.
 
 To go back to a device without Google Apps, delete `product.img` and `system_ext.img` from
 the `Android` directory of the boot partition and wipe data again.
+
+## Known issues
+
+After the install reboot, the first boot on the wiped data did not come up straight away:
+the board showed "cannot mount" messages, hung for about 20 seconds and rebooted, three or
+four times, and the boot reason history recorded `reboot,factory_reset`. It then reached the
+setup wizard on its own and has booted normally since. Data is not encrypted on this board,
+so stale keys are not the cause; the logs of those boots were lost, and the next install
+should be watched over UART.
 
 ## What is not done yet
 
