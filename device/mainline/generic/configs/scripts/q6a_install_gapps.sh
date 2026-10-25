@@ -72,32 +72,38 @@ case "$WANT_ARCH" in "$GOT_ARCH"*) ;; *) echo "wrong architecture - refusing"; e
 /system/bin/unzip -q -o "$ZIP" 'system/product/*' 'system/system_ext/*' -d "$WORK/mtg" || {
     echo "cannot unpack the package"; /system/bin/rm -rf "$WORK"; exit 0; }
 
+# Size of a file in KiB, computed in awk: the shell cannot hold sizes above 2 GiB.
+kib_of() {
+    /system/bin/stat -c%s "$1" | /system/bin/awk '{ printf "%d", $1 / 1024 }'
+}
+
 build_one() {
     part=$1; mp=/$1; stage=$WORK/stage_$1; img=$WORK/$1.img
     /system/bin/rm -rf "$stage"; /system/bin/mkdir -p "$stage"
     /system/bin/cp -a "/system/$part/." "$stage/" || return 1
     [ -d "$WORK/mtg/system/$part" ] && /system/bin/cp -a "$WORK/mtg/system/$part/." "$stage/"
-    bytes=$(/system/bin/du -sb "$stage" | /system/bin/cut -f1)
+    # Sizes in KiB: mksh arithmetic is 32-bit, and a payload in bytes times 115 overflows it.
+    kib=$(/system/bin/du -sk "$stage" | /system/bin/cut -f1)
     files=$(/system/bin/find "$stage" | /system/bin/wc -l)
     # 15% over the payload covers ext4 metadata for this kind of content, which is almost
     # entirely already-compressed APKs. The floor keeps mke2fs from being handed a size it
     # refuses to format at all when the payload is unexpectedly small.
-    blocks=$(( bytes * 115 / 100 / 4096 ))
+    blocks=$(( kib * 115 / 100 / 4 ))
     [ "$blocks" -lt 4096 ] && blocks=4096
     /system/bin/mke2fs -q -F -t ext4 -b 4096 -N $(( files * 2 )) -L "$part" -M "$mp" -m 0 \
         "$img" "$blocks" || return 1
     /system/bin/e2fsdroid -e -T 0 -S "$FC" -f "$stage" -a "$mp" "$img" || return 1
     /system/bin/rm -rf "$stage"
-    echo "built $img ($(( $(/system/bin/stat -c%s "$img") / 1048576 )) MB)"
+    echo "built $img ($(kib_of "$img") KiB)"
 }
 build_one product    || { echo "product.img failed";    /system/bin/rm -rf "$WORK"; exit 0; }
 build_one system_ext || { echo "system_ext.img failed"; /system/bin/rm -rf "$WORK"; exit 0; }
 
 # The boot partition is a fixed 4 GB and the platform images already fill most of it, so
 # check before copying rather than leaving a half-written image behind.
-NEED=$(( $(/system/bin/stat -c%s "$WORK/product.img") + $(/system/bin/stat -c%s "$WORK/system_ext.img") ))
-HAVE=$(( $(/system/bin/df "$ESP" | /system/bin/tail -1 | /system/bin/awk '{print $4}') * 1024 ))
-echo "need $(( NEED/1048576 )) MB, free on boot partition $(( HAVE/1048576 )) MB"
+NEED=$(( $(kib_of "$WORK/product.img") + $(kib_of "$WORK/system_ext.img") ))
+HAVE=$(/system/bin/df -k "$ESP" | /system/bin/tail -1 | /system/bin/awk '{print $4}')
+echo "need $(( NEED / 1024 )) MiB, free on boot partition $(( HAVE / 1024 )) MiB"
 if [ "$HAVE" -lt "$NEED" ]; then
     echo "not enough room on the boot partition - nothing changed"
     /system/bin/rm -rf "$WORK"; exit 0
