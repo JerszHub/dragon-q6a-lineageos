@@ -1,0 +1,8 @@
+# GRUB keeps the A/B slot state in grubenv files on the persist partition.
+allow hal_bootctl_default mnt_vendor_file:dir search;
+allow hal_bootctl_default persist_file:dir rw_dir_perms;
+allow hal_bootctl_default persist_file:file create_file_perms;
+
+recovery_only(`
+    allow hal_bootctl_default rootfs:dir read;
+')

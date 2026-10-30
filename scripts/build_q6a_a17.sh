@@ -26,11 +26,14 @@ source build/envsetup.sh > /dev/null 2>&1
 # from org.lineageos.platform killed system_server without it.
 # lineage_Generic_arm64 inherits vendor/lineage/config/common_full_tablet_wifionly.mk,
 # that is the full product: Lineage boot animation, apps, LineageSettingsProvider.
-lunch lineage_Generic_arm64-cp2a-userdebug > /dev/null 2>&1
+# Q6A_DEVICE selects the product: Generic_arm64 (mainline_generic, the shipped builds) or
+# dragon_q6a (the regular device tree in device/radxa/dragon_q6a, in progress).
+Q6A_DEVICE=${Q6A_DEVICE:-Generic_arm64}
+lunch lineage_${Q6A_DEVICE} cp2a userdebug > /dev/null 2>&1 || { echo "lunch lineage_${Q6A_DEVICE} failed"; exit 1; }
 # Q6A_DEBUG_NET=true includes q6a_debug_net (adb over TCP with fixed addresses). The board has
 # no USB device mode, so without it there is no adb at all. Build releases with Q6A_DEBUG_NET=false.
 export Q6A_DEBUG_NET=${Q6A_DEBUG_NET:-true}
-export LINEAGE_BUILD=Generic_arm64          # BoardConfigLineage.mk is only included when this is set
+export LINEAGE_BUILD=$Q6A_DEVICE            # BoardConfigLineage.mk is only included when this is set
 export SOONG_INCREMENTAL_ANALYSIS=false
 export SOONG_BUILD_GOMEMLIMIT=20GiB         # needs patch 0006 (build/soong/ui/build/soong.go)
 TARGET_GOAL="${1:-all_images}"
@@ -38,6 +41,7 @@ LOG=${LINEAGE_TREE:-$HOME/q6a/lineage}/build_$(date +%m%d_%H%M).log
 
 {
   echo "=== start $(date)"
+  echo "product: lineage_$Q6A_DEVICE"
   echo "target: $TARGET_GOAL"
   echo "MAINLINE_GENERIC_KERNEL_BOARDCONFIG_MK=$MAINLINE_GENERIC_KERNEL_BOARDCONFIG_MK"
 } > "$LOG"

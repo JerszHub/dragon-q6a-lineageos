@@ -1,0 +1,5 @@
+allow init firmware_mnt_file:dir mounton;
+allow init firmware_mnt_file:filesystem { mount unmount relabelfrom };
+allow init persist_block_device:blk_file relabelto;
+allow init persist_file:dir mounton;
+allow init persist_file:filesystem { mount unmount relabelfrom relabelto };

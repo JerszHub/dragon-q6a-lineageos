@@ -1,0 +1,11 @@
+#
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+
+firmware_directories /vendor/firmware/ /vendor/firmware_mnt/ /vendor/etc/firmware/
+
+# FastRPC (Hexagon DSPs)
+/dev/fastrpc-adsp         0664   system     system
+/dev/fastrpc-cdsp         0664   system     system
+/dev/fastrpc-cdsp-secure  0664   system     system

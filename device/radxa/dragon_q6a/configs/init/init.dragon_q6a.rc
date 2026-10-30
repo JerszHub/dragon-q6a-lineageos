@@ -1,0 +1,14 @@
+#
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+
+on early-init
+    # Games such as Genshin Impact use more than the default 65530 mappings per process
+    # and crash once they hit the limit. Desktop Linux distributions use the same value.
+    write /proc/sys/vm/max_map_count 1048576
+
+on post-fs
+    # GRUB's A/B state lives on persist; make sure the directory exists for grub_boot_control.
+    chown system system /mnt/vendor/persist
+    chmod 0771 /mnt/vendor/persist

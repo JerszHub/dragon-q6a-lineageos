@@ -1,0 +1,8 @@
+type vendor_grub_editenv, domain;
+type vendor_grub_editenv_exec, exec_type, vendor_file_type, file_type;
+
+init_daemon_domain(vendor_grub_editenv);
+
+allow vendor_grub_editenv mnt_vendor_file:dir search;
+allow vendor_grub_editenv persist_file:dir r_dir_perms;
+allow vendor_grub_editenv persist_file:file rw_file_perms;

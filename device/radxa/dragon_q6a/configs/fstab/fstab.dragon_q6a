@@ -1,0 +1,28 @@
+#
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+# Android fstab file for Radxa Dragon Q6A.
+#
+# The board boots from a GPT disk (NVMe or SD card) that holds the EFI system partition,
+# super and the slotted boot images; see configs/scripts/create_partition_table.sh for the
+# layout. androidboot.boot_devices=any lets first stage init use whichever disk holds it.
+
+# <src>                       <mnt_point>          <type> <mnt_flags and options>                <fs_mgr_flags>
+system                        /system              ext4   ro,barrier=1                           wait,slotselect,logical,first_stage_mount
+system_dlkm                   /system_dlkm         ext4   ro,barrier=1                           wait,slotselect,logical,first_stage_mount
+system_ext                    /system_ext          ext4   ro,barrier=1                           wait,slotselect,logical,first_stage_mount
+product                       /product             ext4   ro,barrier=1                           wait,slotselect,logical,first_stage_mount
+vendor                        /vendor              ext4   ro,barrier=1                           wait,slotselect,logical,first_stage_mount
+vendor_dlkm                   /vendor_dlkm         ext4   ro,barrier=1                           wait,slotselect,logical,first_stage_mount
+odm                           /odm                 ext4   ro,barrier=1                           wait,slotselect,logical,first_stage_mount
+
+/dev/block/by-name/metadata   /metadata            ext4   noatime,nosuid,nodev,discard           wait,check,formattable,first_stage_mount
+/dev/block/by-name/userdata   /data                ext4   noatime,nosuid,nodev,discard           latemount,wait,check,quota,formattable,fileencryption=aes-256-xts:aes-256-cts:v2,keydirectory=/metadata/vold/metadata_encryption,checkpoint=block
+/dev/block/by-name/misc       /misc                emmc   defaults                               defaults
+
+# GRUB keeps the A/B slot state in grubenv files here; grub_boot_control edits them.
+/dev/block/by-name/persist    /mnt/vendor/persist  ext4   noatime,nosuid,nodev                   wait,check,formattable
+
+# Qualcomm firmware for the DSPs, GPU and video decoder (firmware_class.path=/vendor/firmware/).
+/dev/block/by-name/firmware   /vendor/firmware_mnt vfat   ro,shortname=lower,uid=1000,gid=1000,dmask=227,fmask=337,context=u:object_r:firmware_mnt_file:s0 wait

@@ -1,0 +1,63 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+soong_namespace {
+}
+
+// Fstab
+prebuilt_etc {
+    name: "fstab.dragon_q6a",
+    src: "fstab/fstab.dragon_q6a",
+    vendor: true,
+}
+
+prebuilt_etc {
+    name: "fstab.dragon_q6a.vendor_ramdisk",
+    srcs: ["fstab/fstab.dragon_q6a"],
+    dsts: ["fstab.dragon_q6a"],
+    vendor_ramdisk: true,
+}
+
+// Init
+prebuilt_etc {
+    name: "init.dragon_q6a.rc",
+    src: "init/init.dragon_q6a.rc",
+    sub_dir: "init/hw",
+    vendor: true,
+}
+
+prebuilt_etc {
+    name: "ueventd.dragon_q6a.rc",
+    // Imported by device/mainline/common's ueventd.rc as ueventd.${ro.hardware}.rc.
+    src: "init/ueventd.dragon_q6a.rc",
+    vendor: true,
+}
+
+prebuilt_etc {
+    name: "q6a_load_wifi_bt.rc",
+    src: "init/q6a_load_wifi_bt.rc",
+    sub_dir: "init",
+    vendor: true,
+}
+
+prebuilt_etc {
+    name: "q6a_tuning.rc",
+    src: "init/q6a_tuning.rc",
+    sub_dir: "init",
+    vendor: true,
+}
+
+// Scripts
+prebuilt_bin {
+    name: "q6a_load_wifi_bt.sh",
+    src: "scripts/q6a_load_wifi_bt.sh",
+    vendor: true,
+}
+
+prebuilt_bin {
+    name: "q6a_perf.sh",
+    src: "scripts/q6a_perf.sh",
+    vendor: true,
+}

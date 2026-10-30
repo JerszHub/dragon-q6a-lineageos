@@ -1,0 +1,35 @@
+# Bluetooth
+bluetooth.device.class_of_device=26,1,4
+persist.bluetooth.a2dp_aac.vbr_supported=true
+
+# Graphics
+# Genshin Impact, and anything else that keys its rendering path off GL_RENDERER.
+# Mesa named this chip through the a635 wildcard entry until commit b1e851d66c3
+# ("freedreno: Add Adreno 643", 2023-09-26), which gave it its own entry called "FD643".
+# Genshin recognises the old name and not the new one, and on the new one it drops to a path
+# that renders no water and no rocks and corrupts world textures. The proper fix belongs in
+# Mesa's per-application workarounds (00-mesa-defaults.conf).
+mesa.force.gl.renderer=Adreno 7c+ Gen 3
+
+# EGL blob cache: the multifile cache, with caps above what one Genshin Impact shader warm-up
+# writes (about 70,000 entries and 550 MiB). Needs the MultifileBlobCache::get() fix in
+# frameworks/native. The byte limit is parsed as uint32_t.
+ro.egl.blobcache.multifile=true
+ro.egl.blobcache.multifile_limit=4294967295
+ro.egl.blobcache.multifile_entry_limit=262144
+
+ro.surface_flinger.enable_frame_rate_override=false
+
+# Media
+# iris decodes H.264, HEVC and VP9 and encodes H.264 through the V4L2 stateful Codec2 HAL.
+media.c2.force_rgba8888=true
+ro.vendor.v4l2_codec2.decoder.supported.h264=true
+ro.vendor.v4l2_codec2.decoder.supported.hevc=true
+ro.vendor.v4l2_codec2.decoder.supported.vp9=true
+ro.vendor.v4l2_codec2.encoder.supported.h264=true
+
+# Wi-Fi
+ro.boot.wifi_mac_prefix=5554
+
+# ZRAM
+persist.sys.zram_enabled=1

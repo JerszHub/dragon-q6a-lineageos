@@ -1,0 +1,1 @@
+allow firmware_mnt_file self:filesystem associate;

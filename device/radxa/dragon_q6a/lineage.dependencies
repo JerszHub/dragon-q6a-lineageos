@@ -1,0 +1,18 @@
+[
+  {
+    "repository": "android_device_mainline_common",
+    "target_path": "device/mainline/common"
+  },
+  {
+    "repository": "android_hardware_mainline_common",
+    "target_path": "hardware/mainline/common"
+  },
+  {
+    "repository": "android_kernel_mainline_configs",
+    "target_path": "kernel/mainline/configs"
+  },
+  {
+    "repository": "android_prebuilts_bootmgr",
+    "target_path": "prebuilts/bootmgr"
+  }
+]
