@@ -66,40 +66,54 @@ See `configs/scripts/create_partition_table.sh`.
 
 ## Kernel
 
-android-mainline with the board's patches, as before. `kernel/dragon_q6a.config` is, for now,
-the complete configuration the shipped builds produce from `device/mainline/generic`'s
-Debian-derived fragments; it has to be reduced to what differs from `gki_defconfig`.
-The official phones start from the arm64 `defconfig`, but their kernels are not Android
-common kernels. Ours is, and on top of `defconfig` it loses what the running system relies on:
-the Rust binder that `binder.impl=rust` selects, vendor hooks, dm-default-key and the GKI
-options. So the base stays `gki_defconfig`, followed by `kernel/mainline/configs`' Android
-fragments and a board fragment with the drivers the board's device tree needs.
+android-mainline with the board's patches, as before. The official mainline phones start from
+the arm64 `defconfig`, but their kernels are not Android common kernels. Ours is, and on top of
+`defconfig` it loses what the running system relies on: the Rust binder that `binder.impl=rust`
+selects, vendor hooks, dm-default-key and the GKI options. So the chain is:
+
+1. `gki_defconfig`
+2. `kernel/mainline/configs/fragments/common.config` and `y/fbcon.config` (dma-buf heaps, zram,
+   USB gadget functions, framebuffer console)
+3. `kernel/dragon_q6a.config`: the Qualcomm drivers the board's device tree needs, found by
+   matching the compatible of every enabled node to its driver, with the values of the
+   configuration the board ships with (first stage init's drivers built in, the rest modules),
+   plus the menus GKI turns off, and the devices on PCIe and USB (Ethernet, Bluetooth, the
+   USB hub, USB modems)
+4. `kernel/qcs6490.config`, shared with the generic_init build (48-bit VA, no BTI or shadow
+   call stack, NLS built in, iris instead of venus)
+5. `kernel/dragon_q6a-boot.config`: NVMe, its PCIe PHY, SD card and vfat built in
+
+It replaces the 332 KB configuration the generic_init build produces from Debian's.
 
 Modules are loaded by `init.dragon_q6a.rc` in `post-fs`, after the firmware partition is
 mounted, and the remote processors are started after that, as on the phones.
-`kernel/dragon_q6a-boot.config` builds in the drivers first stage init needs to mount the boot
-disk (NVMe, its PCIe PHY and regulators, SD card, vfat) and efivarfs.
-
 ## Status
 
-The skeleton: product, BoardConfig, fstab, init files, SELinux types for persist and firmware,
-the Q6A services that carry over (Wi-Fi/Bluetooth loading, tuning, the USB modem), properties,
-GRUB additions and the partition script. `lunch lineage_dragon_q6a cp2a userdebug` works and
-the current product, `lineage_Generic_arm64`, is untouched.
+The skeleton on top of qcom-common: product, BoardConfig, fstab, init files, SELinux types for
+persist, the Q6A services that carry over (Wi-Fi/Bluetooth loading, tuning, the USB modem),
+properties, GRUB additions, the partition script and the kernel configuration chain.
+`lunch lineage_dragon_q6a cp2a userdebug` and an analysis build work, and the current product,
+`lineage_Generic_arm64`, still builds unchanged.
 
 ## Still to do
 
-1. Image tasks: the EFI system partition (GRUB, configuration, DTB), persist (ext4, PERSIST,
+1. Image tasks: the EFI system partition (GRUB, configuration, DTB), persist (FAT, PERSIST,
    initial grubenv) and firmware images, and a disk or installer image. The virt trees have all
    of these in `build/tasks`, guarded by `USES_DEVICE_VIRT_VIRT_COMMON`; the open question for
    LineageOS is whether hardware devices should share them (for example from
    `device/mainline/common`) rather than copy them.
-2. fastbootd: a fastboot HAL for recovery (the virt trees have
+   The A/B logic of GRUB's configuration is in virt-common's `grub-boot.cfg`, which this tree
+   does not have yet.
+2. Firmware: the kernel looks in `/vendor/firmware` (`firmware_class.path`), the phones link
+   their files there from `/vendor/firmware_mnt`; this tree needs the same links. The GPU
+   (a660) and video (vpu-2.0) firmware is generic and could come from
+   `external/linux-firmware-mainline`, which does not carry it yet.
+3. fastbootd: a fastboot HAL for recovery (the virt trees have
    `android.hardware.fastboot-service.virt_recovery`).
-3. Kernel modules: the vendor_dlkm module list and load order, which `generic_init` and
+4. Kernel modules: the vendor_dlkm module list and load order, which `generic_init` and
    `q6a_load_wifi_bt` handle today.
-4. SELinux: the Q6A services still run as `su`, which only exists in userdebug builds.
-5. Hardware HALs carried by `device/mainline/generic` today: health, sensors, Wi-Fi overlays,
+5. SELinux: the Q6A services still run as `su`, which only exists in userdebug builds.
+6. Hardware HALs carried by `device/mainline/generic` today: health, sensors, Wi-Fi overlays,
    input configuration, USB gadget (device mode works on the USB 3.1 port, see UPSTREAM.md).
-6. Verified boot: vbmeta and AVB, once the boot chain works.
-7. Build, flash to an SD card, boot, then move the NVMe installation over (it wipes the disk).
+7. Verified boot: vbmeta and AVB, once the boot chain works.
+8. Build, flash to an SD card, boot, then move the NVMe installation over (it wipes the disk).

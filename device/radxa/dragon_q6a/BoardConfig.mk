@@ -44,8 +44,14 @@ TARGET_KERNEL_DTB := qcom/qcs6490-radxa-dragon-q6a.dtb
 TARGET_DTB_LIST_WILDCARD := qcom/qcs6490-radxa-dragon-q6a
 TARGET_KERNEL_SOURCE := kernel/mainline/android-mainline
 TARGET_KERNEL_CONFIG := gki_defconfig
+# android-mainline is an Android common kernel, so gki_defconfig is the base; the official
+# mainline phones start from defconfig because their kernels are not. qcs6490.config is shared
+# with the generic_init build.
 TARGET_KERNEL_CONFIG_EXT := \
+    kernel/mainline/configs/fragments/common.config \
+    kernel/mainline/configs/fragments/y/fbcon.config \
     $(DEVICE_PATH)/kernel/dragon_q6a.config \
+    $(DEVICE_PATH)/kernel/qcs6490.config \
     $(DEVICE_PATH)/kernel/dragon_q6a-boot.config
 # android-mainline dropped its empty Kconfig.ext placeholder; needs LineageOS Gerrit 489817.
 TARGET_KERNEL_KCONFIG_EXT_PREFIX := $(DEVICE_PATH)/kernel/kconfig-ext
