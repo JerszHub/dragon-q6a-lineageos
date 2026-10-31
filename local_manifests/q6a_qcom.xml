@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!--
+    Qualcomm mainline common tree and its dependencies, for the regular dragon_q6a
+    device tree (device/radxa/dragon_q6a inherits device/mainline/qcom-common).
+  -->
+  <project path="device/mainline/qcom-common" name="LineageOS/android_device_mainline_qcom-common" />
+  <project path="hardware/mainline/qcom" name="LineageOS/android_hardware_mainline_qcom" />
+  <project path="hardware/sony/timekeep" name="LineageOS/android_hardware_sony_timekeep" />
+</manifest>

@@ -22,3 +22,5 @@
 0021-v4l2_codec2-encoder-gop-size.patch               external/v4l2_codec2
 0022-kernel-dts-q6a-usb3-superspeed.patch             kernel/mainline/android-mainline
 0023-v4l2_codec2-decoder-dropped-frames.patch         external/v4l2_codec2
+0024-qcom-common-persist-overlay-optional.patch      device/mainline/qcom-common
+0025-qcom-common-soc-sc7280.patch                    device/mainline/qcom-common
