@@ -5,8 +5,8 @@
 
 DEVICE_PATH := device/radxa/dragon_q6a
 
-# Inherit from mainline/common
-include device/mainline/common/BoardConfigMainlineCommon.mk
+# Inherit from mainline/qcom-common
+include device/mainline/qcom-common/BoardConfigMainlineQcomCommon.mk
 
 # A/B
 # The board boots from GPT on NVMe or SD through its UEFI firmware and GRUB; GRUB keeps the
@@ -14,13 +14,6 @@ include device/mainline/common/BoardConfigMainlineCommon.mk
 # grub_boot_control serves it to Android, as in LineageOS' virt devices. Unlike there, the EFI
 # system partition is not slotted: the firmware always starts GRUB from the same one.
 AB_OTA_UPDATER := true
-
-# Architecture
-TARGET_ARCH := arm64
-TARGET_ARCH_VARIANT := armv8-2a-dotprod
-TARGET_CPU_ABI := arm64-v8a
-TARGET_CPU_ABI2 :=
-TARGET_CPU_VARIANT := cortex-a76
 
 # Boot manager
 TARGET_BOOT_MANAGER := grub
@@ -30,6 +23,7 @@ TARGET_GRUB_BOOT_CONFIGS := $(DEVICE_PATH)/bootmgr/grub/grub-boot.cfg
 # Bootconfig
 BOARD_BOOTCONFIG := \
     $(MAINLINE_COMMON_ANDROIDBOOT_PARAMS) \
+    $(MAINLINE_QCOM_SOC_ANDROIDBOOT_PARAMS) \
     androidboot.boot_devices=any \
     androidboot.hardware=dragon_q6a
 
@@ -42,13 +36,6 @@ TARGET_NO_BOOTLOADER := true
 # Filesystem
 TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
-
-# Graphics (Mesa)
-# The Adreno 643 needs freedreno (gallium) and Turnip (Vulkan) only. Assign the lists rather
-# than filtering the common ones: several other drivers do not build in this tree.
-BOARD_MESA3D_BUILD_LIBGBM := true
-BOARD_MESA3D_GALLIUM_DRIVERS := freedreno
-BOARD_MESA3D_VULKAN_DRIVERS := freedreno
 
 # Kernel
 BOARD_KERNEL_IMAGE_NAME := Image
@@ -65,6 +52,7 @@ TARGET_KERNEL_KCONFIG_EXT_PREFIX := $(DEVICE_PATH)/kernel/kconfig-ext
 
 BOARD_KERNEL_CMDLINE := \
     $(MAINLINE_COMMON_KERNEL_PARAMS) \
+    $(MAINLINE_QCOM_KERNEL_PARAMS) \
     clk_ignore_unused \
     console=tty0 \
     initcall_blacklist=simpledrm_platform_driver_init \
@@ -118,9 +106,6 @@ AB_OTA_PARTITIONS := \
     boot \
     vendor_boot
 
-# Platform
-TARGET_BOARD_PLATFORM := kodiak
-
 # Properties
 TARGET_VENDOR_PROP += $(DEVICE_PATH)/configs/properties/vendor.prop
 
@@ -132,7 +117,6 @@ BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
 BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
 TARGET_NO_RECOVERY := true
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/configs/fstab/fstab.dragon_q6a
-TARGET_RECOVERY_PIXEL_FORMAT := RGBX_8888
 
 # SELinux
 BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor

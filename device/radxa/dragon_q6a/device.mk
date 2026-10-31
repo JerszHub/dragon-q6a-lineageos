@@ -5,13 +5,14 @@
 
 DEVICE_PATH := device/radxa/dragon_q6a
 
-# Inherit from mainline/common
-$(call inherit-product, device/mainline/common/mainline_common.mk)
+# Inherit from mainline/qcom-common
+$(call inherit-product, device/mainline/qcom-common/mainline_qcom-common.mk)
 
 # A/B
 AB_OTA_POSTINSTALL_CONFIG += \
     FILESYSTEM_TYPE_system=ext4
 
+# GRUB's A/B state lives on persist, so qcom-common leaves persist writable.
 TARGET_BOOT_HAL := grub
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/launch_with_vendor_ramdisk.mk)
@@ -62,7 +63,6 @@ TARGET_MESA_DO_NOT_SET_AS_DEFAULT := true
 TARGET_MESA_ENABLE_SOFTWARE_RENDERER := false
 
 # Graphics allocator
-TARGET_GRAPHICS_ALLOCATOR_HAL := minigbm-upstream
 TARGET_MINIGBM_UPSTREAM_ENABLE_GBM_MESA_DRIVER := true
 
 PRODUCT_PACKAGES += \
@@ -94,6 +94,9 @@ PRODUCT_COPY_FILES += \
 
 # Scoped Storage
 $(call inherit-product, $(SRC_TARGET_DIR)/product/emulated_storage.mk)
+
+# SoC
+TARGET_QCOM_SOC := qcs6490
 
 # Shipping API level
 TARGET_FOLLOWS_LATEST_SHIPPING_API_LEVEL := true

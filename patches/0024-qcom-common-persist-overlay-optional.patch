@@ -1,0 +1,104 @@
+diff --git a/init/Android.bp b/init/Android.bp
+index 0180e57..75a739c 100644
+--- a/init/Android.bp
++++ b/init/Android.bp
+@@ -10,6 +10,13 @@ prebuilt_etc {
+     vendor: true,
+ }
+ 
++prebuilt_etc {
++    name: "init.mainline.qcom.persist_overlay.rc",
++    src: "init.mainline.qcom.persist_overlay.rc",
++    sub_dir: "init",
++    vendor: true,
++}
++
+ prebuilt_etc {
+     name: "init.recovery.mainline.qcom.rc",
+     src: "init.recovery.mainline.qcom.rc",
+diff --git a/init/init.mainline.qcom.persist_overlay.rc b/init/init.mainline.qcom.persist_overlay.rc
+new file mode 100644
+index 0000000..ed1f718
+--- /dev/null
++++ b/init/init.mainline.qcom.persist_overlay.rc
+@@ -0,0 +1,10 @@
++#
++# SPDX-FileCopyrightText: The LineageOS Project
++# SPDX-License-Identifier: Apache-2.0
++#
++
++# Persist
++on post-fs
++    mkdir /mnt/vendor/persist-overlayfs-upperdir
++    mkdir /mnt/vendor/persist-overlayfs-workdir
++    mount overlay overlay /mnt/vendor/persist rw lowerdir=/mnt/vendor/persist,upperdir=/mnt/vendor/persist-overlayfs-upperdir,workdir=/mnt/vendor/persist-overlayfs-workdir
+diff --git a/init/init.mainline.qcom.rc b/init/init.mainline.qcom.rc
+index 161ad1a..e63f3c1 100644
+--- a/init/init.mainline.qcom.rc
++++ b/init/init.mainline.qcom.rc
+@@ -43,12 +43,6 @@ on boot && property:ro.vendor.qcom.soc.enable_modem_services=1
+ on shutdown
+     stop vendor.rmtfs
+ 
+-# Persist
+-on post-fs
+-    mkdir /mnt/vendor/persist-overlayfs-upperdir
+-    mkdir /mnt/vendor/persist-overlayfs-workdir
+-    mount overlay overlay /mnt/vendor/persist rw lowerdir=/mnt/vendor/persist,upperdir=/mnt/vendor/persist-overlayfs-upperdir,workdir=/mnt/vendor/persist-overlayfs-workdir
+-
+ # Remoteproc
+ on property:vendor.remoteproc.trigger_start=*
+     exec u:r:vendor_start_remoteproc:s0 -- /vendor/bin/sh /vendor/bin/init.mainline.qcom.start_remoteproc.sh ${vendor.remoteproc.trigger_start}
+diff --git a/mainline_qcom-common.mk b/mainline_qcom-common.mk
+index 757682c..8d076d5 100644
+--- a/mainline_qcom-common.mk
++++ b/mainline_qcom-common.mk
+@@ -43,6 +43,11 @@ PRODUCT_PACKAGES += \
+     init.mainline.qcom.sh \
+     init.mainline.qcom.start_remoteproc.sh
+ 
++ifeq ($(TARGET_QCOM_USES_PERSIST_OVERLAY),true)
++PRODUCT_PACKAGES += \
++    init.mainline.qcom.persist_overlay.rc
++endif
++
+ # Media
+ PRODUCT_PACKAGES += \
+     media_profiles.xml
+diff --git a/optional/README.md b/optional/README.md
+index 152db4b..bb745b3 100644
+--- a/optional/README.md
++++ b/optional/README.md
+@@ -5,6 +5,14 @@
+ |-------|-----------|-------------|
+ | qcom-caf-aidl | boot-hal_qcom-caf-aidl | Downstream boot control HAL from hardware/qcom-caf/bootctrl |
+ 
++## Persist
++
++### TARGET_QCOM_USES_PERSIST_OVERLAY
++| Value | Description |
++|-------|-------------|
++| true | Mount a tmpfs-backed overlay over `/mnt/vendor/persist`, so that nothing on the device writes to the persist partition. Default. |
++| false | Leave `/mnt/vendor/persist` writable. Default when `TARGET_BOOT_HAL` is `grub`, whose A/B slot state lives there. |
++
+ ## USB
+ 
+ ### TARGET_USB_HAL
+diff --git a/optional/options.mk b/optional/options.mk
+index 85cdab0..c414d02 100644
+--- a/optional/options.mk
++++ b/optional/options.mk
+@@ -48,6 +48,13 @@ endif
+ # Graphics HALs
+ TARGET_GRAPHICS_ALLOCATOR_HAL ?= minigbm-upstream
+ 
++# Persist
++# GRUB keeps its A/B slot state in /mnt/vendor/persist, which the overlay would make volatile.
++ifeq ($(TARGET_BOOT_HAL),grub)
++TARGET_QCOM_USES_PERSIST_OVERLAY ?= false
++endif
++TARGET_QCOM_USES_PERSIST_OVERLAY ?= true
++
+ # Inherit from mainline/common
+ include device/mainline/common/optional/options.mk
+ 

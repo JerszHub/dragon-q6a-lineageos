@@ -21,12 +21,8 @@ ro.egl.blobcache.multifile_entry_limit=262144
 ro.surface_flinger.enable_frame_rate_override=false
 
 # Media
-# iris decodes H.264, HEVC and VP9 and encodes H.264 through the V4L2 stateful Codec2 HAL.
+# The codecs themselves are declared by qcom-common's sc7280 SoC family.
 media.c2.force_rgba8888=true
-ro.vendor.v4l2_codec2.decoder.supported.h264=true
-ro.vendor.v4l2_codec2.decoder.supported.hevc=true
-ro.vendor.v4l2_codec2.decoder.supported.vp9=true
-ro.vendor.v4l2_codec2.encoder.supported.h264=true
 
 # Wi-Fi
 ro.boot.wifi_mac_prefix=5554

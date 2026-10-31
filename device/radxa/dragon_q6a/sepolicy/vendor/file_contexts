@@ -4,8 +4,5 @@
 # Executables
 /vendor/bin/grub-editenv                        u:object_r:vendor_grub_editenv_exec:s0
 
-# Firmware
-/vendor/firmware_mnt(/.*)?                      u:object_r:firmware_mnt_file:s0
-
 # Persist
 /mnt/vendor/persist(/.*)?                       u:object_r:persist_file:s0

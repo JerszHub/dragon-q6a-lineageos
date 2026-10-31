@@ -3,12 +3,24 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import /vendor/etc/init/hw/init.mainline.qcom.rc
+
 on early-init
     # Games such as Genshin Impact use more than the default 65530 mappings per process
     # and crash once they hit the limit. Desktop Linux distributions use the same value.
     write /proc/sys/vm/max_map_count 1048576
 
+# Mount
+on fs
+    # Everything first stage init did not mount and that needs no fsck: persist, firmware
+    mount_all --early
+
+on late-fs
+    mount_all --late
+
+# Kernel modules
 on post-fs
-    # GRUB's A/B state lives on persist; make sure the directory exists for grub_boot_control.
-    chown system system /mnt/vendor/persist
-    chmod 0771 /mnt/vendor/persist
+    # The remote processors need their firmware, which is on the firmware partition
+    # mounted above.
+    exec u:r:vendor_modprobe:s0 -- /vendor/bin/modprobe -s -d /vendor_dlkm/lib/modules --all=/vendor_dlkm/lib/modules/modules.load
+    trigger start_all_remoteproc

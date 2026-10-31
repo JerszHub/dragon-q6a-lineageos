@@ -1,0 +1,165 @@
+diff --git a/optional/options.mk b/optional/options.mk
+index c414d02..409ce38 100644
+--- a/optional/options.mk
++++ b/optional/options.mk
+@@ -22,6 +22,8 @@ ifeq ($(TARGET_QCOM_SOC_FAMILY),)
+             TARGET_QCOM_SOC_FAMILY := msm8956
+         else ifneq ($(filter msm8998,$(TARGET_QCOM_SOC)),)
+             TARGET_QCOM_SOC_FAMILY := msm8998
++        else ifneq ($(filter qcm6490 qcs6490 sc7280 sm7325%,$(TARGET_QCOM_SOC)),)
++            TARGET_QCOM_SOC_FAMILY := sc7280
+         else ifneq ($(filter sdm670 sdm710,$(TARGET_QCOM_SOC)),)
+             TARGET_QCOM_SOC_FAMILY := sdm670
+         else ifneq ($(filter sm7150%,$(TARGET_QCOM_SOC)),)
+diff --git a/soc/README.md b/soc/README.md
+index 8e78c4a..ae771c5 100644
+--- a/soc/README.md
++++ b/soc/README.md
+@@ -32,6 +32,14 @@
+ ### msm8998
+ - Qualcomm Snapdragon 835 `msm8998`
+ 
++### sc7280
++- Qualcomm QCM6490 `qcm6490`
++- Qualcomm QCS6490 `qcs6490`
++- Qualcomm Snapdragon 7c+ Gen 3 `sc7280`
++- Qualcomm Snapdragon 778G `sm7325`
++- Qualcomm Snapdragon 778G+ `sm7325-ae`
++- Qualcomm Snapdragon 782G `sm7325-af`
++
+ ### sdm670
+ - Qualcomm Snapdragon 670 `sdm670`
+ - Qualcomm Snapdragon 710 `sdm710`
+diff --git a/soc/sc7280/board.mk b/soc/sc7280/board.mk
+new file mode 100644
+index 0000000..c958750
+--- /dev/null
++++ b/soc/sc7280/board.mk
+@@ -0,0 +1,50 @@
++#
++# SPDX-FileCopyrightText: The LineageOS Project
++# SPDX-License-Identifier: Apache-2.0
++#
++
++# Architecture
++ifneq ($(TARGET_SUPPORTS_64_BIT_APPS),true)
++
++TARGET_ARCH := arm
++TARGET_ARCH_VARIANT := armv8-2a
++TARGET_CPU_ABI := armeabi-v7a
++TARGET_CPU_ABI2 := armeabi
++ifeq ($(TARGET_CPU_VARIANT_RUNTIME_ENABLE),true)
++TARGET_CPU_VARIANT := generic
++TARGET_CPU_VARIANT_RUNTIME := cortex-a76
++else # !TARGET_CPU_VARIANT_RUNTIME_ENABLE
++TARGET_CPU_VARIANT := cortex-a76
++endif # TARGET_CPU_VARIANT_RUNTIME_ENABLE
++
++else # TARGET_SUPPORTS_64_BIT_APPS
++
++TARGET_ARCH := arm64
++TARGET_ARCH_VARIANT := armv8-2a-dotprod
++TARGET_CPU_ABI := arm64-v8a
++TARGET_CPU_ABI2 :=
++ifeq ($(TARGET_CPU_VARIANT_RUNTIME_ENABLE),true)
++TARGET_CPU_VARIANT := generic
++TARGET_CPU_VARIANT_RUNTIME := cortex-a76
++else # !TARGET_CPU_VARIANT_RUNTIME_ENABLE
++TARGET_CPU_VARIANT := cortex-a76
++endif # TARGET_CPU_VARIANT_RUNTIME_ENABLE
++
++ifneq ($(TARGET_SUPPORTS_32_BIT_APPS),false)
++TARGET_2ND_ARCH := arm
++TARGET_2ND_ARCH_VARIANT := armv8-2a
++TARGET_2ND_CPU_ABI := armeabi-v7a
++TARGET_2ND_CPU_ABI2 := armeabi
++ifeq ($(TARGET_CPU_VARIANT_RUNTIME_ENABLE),true)
++TARGET_2ND_CPU_VARIANT := generic
++TARGET_2ND_CPU_VARIANT_RUNTIME := cortex-a76
++else # !TARGET_CPU_VARIANT_RUNTIME_ENABLE
++TARGET_2ND_CPU_VARIANT := cortex-a76
++endif # TARGET_CPU_VARIANT_RUNTIME_ENABLE
++endif # !TARGET_SUPPORTS_32_BIT_APPS
++
++endif # TARGET_SUPPORTS_64_BIT_APPS
++
++# SELinux
++BOARD_VENDOR_SEPOLICY_DIRS += \
++    $(MAINLINE_QCOM_COMMON_SOC_PATH)/sepolicy/vendor
+diff --git a/soc/sc7280/init/Android.bp b/soc/sc7280/init/Android.bp
+new file mode 100644
+index 0000000..3e21703
+--- /dev/null
++++ b/soc/sc7280/init/Android.bp
+@@ -0,0 +1,11 @@
++//
++// SPDX-FileCopyrightText: The LineageOS Project
++// SPDX-License-Identifier: Apache-2.0
++//
++
++prebuilt_etc {
++    name: "init.mainline.qcom.sc7280.rc",
++    src: "init.mainline.qcom.sc7280.rc",
++    sub_dir: "init/hw",
++    vendor: true,
++}
+diff --git a/soc/sc7280/init/init.mainline.qcom.sc7280.rc b/soc/sc7280/init/init.mainline.qcom.sc7280.rc
+new file mode 100644
+index 0000000..78f0a88
+--- /dev/null
++++ b/soc/sc7280/init/init.mainline.qcom.sc7280.rc
+@@ -0,0 +1,10 @@
++#
++# SPDX-FileCopyrightText: The LineageOS Project
++# SPDX-License-Identifier: Apache-2.0
++#
++
++# Cpuset
++# CPUs 0-3 are the Cortex-A55 cluster.
++on boot
++    write /dev/cpuset/background/cpus 0-3
++    write /dev/cpuset/system-background/cpus 0-3
+diff --git a/soc/sc7280/product.mk b/soc/sc7280/product.mk
+new file mode 100644
+index 0000000..42d450f
+--- /dev/null
++++ b/soc/sc7280/product.mk
+@@ -0,0 +1,20 @@
++#
++# SPDX-FileCopyrightText: The LineageOS Project
++# SPDX-License-Identifier: Apache-2.0
++#
++
++# Graphics allocator (minigbm)
++$(call soong_config_set_string_list,minigbm_upstream,cflags,-DSC_7280)
++
++# Init
++PRODUCT_PACKAGES += \
++    init.mainline.qcom.sc7280.rc
++
++# Media
++ifeq ($(TARGET_MEDIA_C2_HAL),v4l2_codec2)
++PRODUCT_VENDOR_PROPERTIES += \
++    ro.vendor.v4l2_codec2.decoder.supported.h264=true \
++    ro.vendor.v4l2_codec2.decoder.supported.hevc=true \
++    ro.vendor.v4l2_codec2.decoder.supported.vp9=true \
++    ro.vendor.v4l2_codec2.encoder.supported.h264=true
++endif # TARGET_MEDIA_C2_HAL
+diff --git a/soc/sc7280/sepolicy/vendor/genfs_contexts b/soc/sc7280/sepolicy/vendor/genfs_contexts
+new file mode 100644
+index 0000000..ac6a885
+--- /dev/null
++++ b/soc/sc7280/sepolicy/vendor/genfs_contexts
+@@ -0,0 +1,12 @@
++# GPU
++genfscon sysfs /devices/platform/soc@0/3d00000.gpu			u:object_r:sysfs_gpu:s0
++genfscon sysfs /devices/platform/soc@0/ae00000.display-subsystem	u:object_r:sysfs_gpu:s0
++
++# Remoteproc
++genfscon sysfs /devices/platform/soc@0/3700000.remoteproc/remoteproc/remoteproc		u:object_r:vendor_sysfs_remoteproc:s0
++genfscon sysfs /devices/platform/soc@0/4080000.remoteproc/remoteproc/remoteproc		u:object_r:vendor_sysfs_remoteproc:s0
++genfscon sysfs /devices/platform/soc@0/8a00000.remoteproc/remoteproc/remoteproc		u:object_r:vendor_sysfs_remoteproc:s0
++genfscon sysfs /devices/platform/soc@0/a300000.remoteproc/remoteproc/remoteproc		u:object_r:vendor_sysfs_remoteproc:s0
++
++# USB
++genfscon sysfs /devices/platform/soc@0/a600000.usb/udc/a600000.usb	u:object_r:sysfs_udc:s0

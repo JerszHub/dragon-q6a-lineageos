@@ -7,6 +7,24 @@ one. Asked on the LineageOS Discord (October 2026), the answers were that the bo
 to choose (GBL, U-Boot and GRUB are all in use) and that a board whose stock OS is Linux can be
 official; Banana Pi M5 is one.
 
+## Common trees
+
+The tree inherits `device/mainline/qcom-common`, like LineageOS' official mainline Qualcomm
+phones (for example `device/xiaomi/mi7150-mainline`), with `TARGET_QCOM_SOC := qcs6490`.
+qcom-common had no family for this SoC, so two changes to it are carried as patches:
+
+- `patches/0024-qcom-common-persist-overlay-optional.patch`: qcom-common mounts a tmpfs overlay
+  over `/mnt/vendor/persist`, which would throw away every write grub_boot_control makes to the
+  slot state. The overlay becomes an option, off by default when `TARGET_BOOT_HAL` is `grub`.
+- `patches/0025-qcom-common-soc-sc7280.patch`: the `sc7280` family (QCM6490, QCS6490, SC7280,
+  SM7325), with only what all of them share: CPU architecture, cpusets, sysfs labels for the
+  GPU, display, remoteprocs and USB, minigbm flags and the iris codecs. It is based on the
+  abandoned Gerrit change 445799, without that change's phone-specific parts (UFS boot device,
+  WCN6750, DSI backlight).
+
+qcom-common brings `hardware/mainline/qcom` (rmtfs, pd-mapper, tqftpserv, pil-squasher) and
+`hardware/sony/timekeep`; `.repo/local_manifests/q6a_qcom.xml` adds the three projects.
+
 ## Boot chain
 
     SPI NOR firmware (Qualcomm XBL + UEFI, Radxa)  ->  GRUB on the EFI system partition
@@ -39,7 +57,7 @@ See `configs/scripts/create_partition_table.sh`.
 | 1 | EFI | 256 MiB | GRUB, its configuration and theme, the DTB |
 | 2 | super | 12 GiB | system, system_ext, product, vendor, odm, system_dlkm, vendor_dlkm (virtual A/B) |
 | 3 | misc | 1 MiB | bootloader messages |
-| 4 | persist | 16 MiB | ext4 labelled PERSIST: `grubenv`, `grubenv_abootctrl` |
+| 4 | persist | 16 MiB | FAT labelled PERSIST (GRUB writes it): `grubenv`, `grubenv_abootctrl` |
 | 5 | metadata | 32 MiB | metadata encryption keys, OTA snapshots |
 | 6 | firmware | 128 MiB | Qualcomm firmware |
 | 7, 8 | vendor_boot_a/b | 100 MiB | vendor ramdisk, recovery ramdisk, kernel modules |
@@ -51,6 +69,14 @@ See `configs/scripts/create_partition_table.sh`.
 android-mainline with the board's patches, as before. `kernel/dragon_q6a.config` is, for now,
 the complete configuration the shipped builds produce from `device/mainline/generic`'s
 Debian-derived fragments; it has to be reduced to what differs from `gki_defconfig`.
+The official phones start from the arm64 `defconfig`, but their kernels are not Android
+common kernels. Ours is, and on top of `defconfig` it loses what the running system relies on:
+the Rust binder that `binder.impl=rust` selects, vendor hooks, dm-default-key and the GKI
+options. So the base stays `gki_defconfig`, followed by `kernel/mainline/configs`' Android
+fragments and a board fragment with the drivers the board's device tree needs.
+
+Modules are loaded by `init.dragon_q6a.rc` in `post-fs`, after the firmware partition is
+mounted, and the remote processors are started after that, as on the phones.
 `kernel/dragon_q6a-boot.config` builds in the drivers first stage init needs to mount the boot
 disk (NVMe, its PCIe PHY and regulators, SD card, vfat) and efivarfs.
 

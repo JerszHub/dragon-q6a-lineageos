@@ -21,8 +21,9 @@ odm                           /odm                 ext4   ro,barrier=1          
 /dev/block/by-name/userdata   /data                ext4   noatime,nosuid,nodev,discard           latemount,wait,check,quota,formattable,fileencryption=aes-256-xts:aes-256-cts:v2,keydirectory=/metadata/vold/metadata_encryption,checkpoint=block
 /dev/block/by-name/misc       /misc                emmc   defaults                               defaults
 
-# GRUB keeps the A/B slot state in grubenv files here; grub_boot_control edits them.
-/dev/block/by-name/persist    /mnt/vendor/persist  ext4   noatime,nosuid,nodev                   wait,check,formattable
+# GRUB keeps the A/B slot state in grubenv files here (FAT labelled PERSIST, which GRUB can
+# write); grub_boot_control edits them.
+/dev/block/by-name/persist    /mnt/vendor/persist  vfat   rw,sync,shortname=lower,uid=1000,gid=1000,dmask=007,fmask=117,context=u:object_r:persist_file:s0 wait,formattable
 
 # Qualcomm firmware for the DSPs, GPU and video decoder (firmware_class.path=/vendor/firmware/).
 /dev/block/by-name/firmware   /vendor/firmware_mnt vfat   ro,shortname=lower,uid=1000,gid=1000,dmask=227,fmask=337,context=u:object_r:firmware_mnt_file:s0 wait
