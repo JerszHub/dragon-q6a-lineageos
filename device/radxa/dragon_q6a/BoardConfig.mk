@@ -10,6 +10,15 @@ USES_DEVICE_RADXA_DRAGON_Q6A := true
 # Inherit from mainline/qcom-common
 include device/mainline/qcom-common/BoardConfigMainlineQcomCommon.mk
 
+# Testing: DRAGON_Q6A_GENERIC_CPU=true builds for the CPU variant of mainline_generic's
+# Generic_arm64, so that a tree which has built that product reuses its native outputs instead
+# of compiling everything again for cortex-a76.
+ifeq ($(DRAGON_Q6A_GENERIC_CPU),true)
+TARGET_ARCH_VARIANT := armv8-a
+TARGET_CPU_VARIANT := generic
+TARGET_CPU_VARIANT_RUNTIME :=
+endif
+
 # A/B
 # The board boots from GPT on NVMe or SD through its UEFI firmware and GRUB; GRUB keeps the
 # slot state in grubenv on the persist partition and hardware/mainline/common's
