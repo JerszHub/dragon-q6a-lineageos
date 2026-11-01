@@ -46,7 +46,16 @@ PRODUCT_BUILD_SUPER_PARTITION := true
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
 PRODUCT_USE_DYNAMIC_PARTITION_SIZE := true
 
+# Firmware
+PRODUCT_PACKAGES += \
+    dragon_q6a_firmware_qcom_symlink
+
 # First stage init
+# DRAGON_Q6A_DUAL_BOOT=true builds for a disk shared with a generic_init installation (testing).
+ifeq ($(DRAGON_Q6A_DUAL_BOOT),true)
+$(call soong_config_set,dragon_q6a,fstab_variant,dual_boot)
+endif
+
 PRODUCT_PACKAGES += \
     fstab.dragon_q6a \
     fstab.dragon_q6a.vendor_ramdisk \

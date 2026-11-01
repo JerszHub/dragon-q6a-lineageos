@@ -1,5 +1,11 @@
 # Block devices
+# q6a_metadata and q6a_userdata: the dual_boot fstab variant, see configs/Android.bp.
+/dev/block/by-name/(vendor_)?boot_[ab]          u:object_r:boot_block_device:s0
+/dev/block/by-name/(q6a_)?metadata              u:object_r:metadata_block_device:s0
+/dev/block/by-name/(q6a_)?userdata              u:object_r:userdata_block_device:s0
+/dev/block/by-name/misc                         u:object_r:misc_block_device:s0
 /dev/block/by-name/persist                      u:object_r:persist_block_device:s0
+/dev/block/by-name/super                        u:object_r:super_block_device:s0
 
 # Executables
 /vendor/bin/grub-editenv                        u:object_r:vendor_grub_editenv_exec:s0

@@ -6,5 +6,7 @@
   -->
   <project path="device/mainline/qcom-common" name="LineageOS/android_device_mainline_qcom-common" />
   <project path="hardware/mainline/qcom" name="LineageOS/android_hardware_mainline_qcom" />
+  <!-- GRUB EFI binary for arm64, as device/xiaomi/mi7150-mainline uses it. -->
+  <project path="device/virt/virtio_arm64" name="LineageOS/android_device_virt_virtio_arm64" />
   <project path="hardware/sony/timekeep" name="LineageOS/android_hardware_sony_timekeep" />
 </manifest>

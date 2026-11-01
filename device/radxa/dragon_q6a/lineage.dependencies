@@ -4,6 +4,10 @@
     "target_path": "device/mainline/qcom-common"
   },
   {
+    "repository": "android_device_virt_virtio_arm64",
+    "target_path": "device/virt/virtio_arm64"
+  },
+  {
     "repository": "android_hardware_mainline_common",
     "target_path": "hardware/mainline/common"
   },

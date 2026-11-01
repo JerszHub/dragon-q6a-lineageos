@@ -97,17 +97,15 @@ properties, GRUB additions, the partition script and the kernel configuration ch
 
 ## Still to do
 
-1. Image tasks: the EFI system partition (GRUB, configuration, DTB), persist (FAT, PERSIST,
-   initial grubenv) and firmware images, and a disk or installer image. The virt trees have all
-   of these in `build/tasks`, guarded by `USES_DEVICE_VIRT_VIRT_COMMON`; the open question for
-   LineageOS is whether hardware devices should share them (for example from
-   `device/mainline/common`) rather than copy them.
-   The A/B logic of GRUB's configuration is in virt-common's `grub-boot.cfg`, which this tree
-   does not have yet.
-2. Firmware: the kernel looks in `/vendor/firmware` (`firmware_class.path`), the phones link
-   their files there from `/vendor/firmware_mnt`; this tree needs the same links. The GPU
-   (a660) and video (vpu-2.0) firmware is generic and could come from
-   `external/linux-firmware-mainline`, which does not carry it yet.
+1. Done: `build/tasks/images.mk` builds `EFI.img` (GRUB from device/virt/virtio_arm64 as
+   mi7150 does, its modules, `bootmgr/grub/grub-boot.cfg`, the DTB), `persist.img` (FAT
+   PERSIST, grubenv and grubenv_abootctrl) and `firmware.img` (from
+   `vendor/radxa/dragon_q6a/firmware`, filled by `scripts/fetch_firmware.sh`). Still missing:
+   a disk or installer image, and the open question for LineageOS whether hardware devices
+   should share the virt trees' image tasks rather than copy them.
+2. Firmware: done for the files the board uses (a symlink /vendor/firmware/qcom ->
+   /vendor/firmware_mnt/qcom). The GPU (a660) and video (vpu-2.0) firmware is generic and could
+   come from `external/linux-firmware-mainline`, which does not carry it yet.
 3. fastbootd: a fastboot HAL for recovery (the virt trees have
    `android.hardware.fastboot-service.virt_recovery`).
 4. Kernel modules: the vendor_dlkm module list and load order, which `generic_init` and

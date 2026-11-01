@@ -5,6 +5,8 @@
 
 DEVICE_PATH := device/radxa/dragon_q6a
 
+USES_DEVICE_RADXA_DRAGON_Q6A := true
+
 # Inherit from mainline/qcom-common
 include device/mainline/qcom-common/BoardConfigMainlineQcomCommon.mk
 
@@ -14,11 +16,6 @@ include device/mainline/qcom-common/BoardConfigMainlineQcomCommon.mk
 # grub_boot_control serves it to Android, as in LineageOS' virt devices. Unlike there, the EFI
 # system partition is not slotted: the firmware always starts GRUB from the same one.
 AB_OTA_UPDATER := true
-
-# Boot manager
-TARGET_BOOT_MANAGER := grub
-TARGET_GRUB_ARCH := arm64-efi
-TARGET_GRUB_BOOT_CONFIGS := $(DEVICE_PATH)/bootmgr/grub/grub-boot.cfg
 
 # Bootconfig
 BOARD_BOOTCONFIG := \
@@ -123,6 +120,9 @@ BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
 BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
 TARGET_NO_RECOVERY := true
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/configs/fstab/fstab.dragon_q6a
+ifeq ($(DRAGON_Q6A_DUAL_BOOT),true)
+TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/configs/fstab/fstab.dragon_q6a.dual_boot
+endif
 
 # SELinux
 BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor

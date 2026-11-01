@@ -36,7 +36,7 @@ export Q6A_DEBUG_NET=${Q6A_DEBUG_NET:-true}
 export LINEAGE_BUILD=$Q6A_DEVICE            # BoardConfigLineage.mk is only included when this is set
 export SOONG_INCREMENTAL_ANALYSIS=false
 export SOONG_BUILD_GOMEMLIMIT=20GiB         # needs patch 0006 (build/soong/ui/build/soong.go)
-TARGET_GOAL="${1:-all_images}"
+TARGET_GOAL="${*:-all_images}"
 LOG=${LINEAGE_TREE:-$HOME/q6a/lineage}/build_$(date +%m%d_%H%M).log
 
 {
@@ -52,6 +52,7 @@ echo "log: $LOG"
 # reach 21 GB, but it is ONE process bounded by GOMEMLIMIT, not by -j. Only ninja
 # runs compilers in parallel, and those are much lighter. -j8 is a compromise: 33% more than
 # -j6, with enough headroom left for kotlinc/r8 at the end, when the apps are built.
-m "$TARGET_GOAL" -j8 >> "$LOG" 2>&1
+# shellcheck disable=SC2086 # several goals may be given
+m $TARGET_GOAL -j8 >> "$LOG" 2>&1
 echo "BUILD_EXIT=$? $(date)" >> "$LOG"
 tail -4 "$LOG"

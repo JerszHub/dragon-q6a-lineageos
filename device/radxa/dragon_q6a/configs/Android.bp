@@ -6,17 +6,35 @@
 soong_namespace {
 }
 
+// Firmware
+// The firmware partition is mounted at /vendor/firmware_mnt; the kernel looks in /vendor/firmware.
+install_symlink {
+    name: "dragon_q6a_firmware_qcom_symlink",
+    installed_location: "firmware/qcom",
+    symlink_target: "/vendor/firmware_mnt/qcom",
+    vendor: true,
+}
+
 // Fstab
+// The dual_boot variant is for testing next to a generic_init installation on the same disk,
+// which owns the partitions named metadata and userdata.
 prebuilt_etc {
     name: "fstab.dragon_q6a",
-    src: "fstab/fstab.dragon_q6a",
+    src: select(soong_config_variable("dragon_q6a", "fstab_variant"), {
+        "dual_boot": "fstab/fstab.dragon_q6a.dual_boot",
+        default: "fstab/fstab.dragon_q6a",
+    }),
+    filename: "fstab.dragon_q6a",
     vendor: true,
 }
 
 prebuilt_etc {
     name: "fstab.dragon_q6a.vendor_ramdisk",
-    srcs: ["fstab/fstab.dragon_q6a"],
-    dsts: ["fstab.dragon_q6a"],
+    src: select(soong_config_variable("dragon_q6a", "fstab_variant"), {
+        "dual_boot": "fstab/fstab.dragon_q6a.dual_boot",
+        default: "fstab/fstab.dragon_q6a",
+    }),
+    filename: "fstab.dragon_q6a",
     vendor_ramdisk: true,
 }
 
