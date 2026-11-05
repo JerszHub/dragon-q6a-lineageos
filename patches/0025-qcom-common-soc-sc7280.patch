@@ -121,14 +121,23 @@ index 0000000..78f0a88
 +    write /dev/cpuset/system-background/cpus 0-3
 diff --git a/soc/sc7280/product.mk b/soc/sc7280/product.mk
 new file mode 100644
-index 0000000..42d450f
+index 0000000..875e941
 --- /dev/null
 +++ b/soc/sc7280/product.mk
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,29 @@
 +#
 +# SPDX-FileCopyrightText: The LineageOS Project
 +# SPDX-License-Identifier: Apache-2.0
 +#
++
++# Graphics (Mesa)
++# Turnip reports Vulkan 1.3 on Adreno 643; dEQP has not been run, so level 0 for now.
++ifeq ($(TARGET_GRAPHICS),mesa)
++PRODUCT_COPY_FILES += \
++    frameworks/native/data/etc/android.hardware.opengles.aep.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.opengles.aep.xml \
++    frameworks/native/data/etc/android.hardware.vulkan.level-0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.level.xml \
++    frameworks/native/data/etc/android.hardware.vulkan.version-1_3.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.version.xml
++endif
 +
 +# Graphics allocator (minigbm)
 +$(call soong_config_set_string_list,minigbm_upstream,cflags,-DSC_7280)

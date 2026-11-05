@@ -115,6 +115,16 @@ else
   echo "    WARNING: $LFW_SRC/qcom/qcm6490/qupv3fw.elf missing - no I2C or SPI"
 fi
 
+# Ethernet (RTL8111H). r8169 works without it, but loads Realtek's PHY parameters for this
+# chip from it when present, as every Linux distribution ships it.
+mmd -i "$SPEC" ::/Android/firmware/rtl_nic 2>/dev/null || true
+if [ -f "$LFW_SRC/rtl_nic/rtl8168h-2.fw" ]; then
+  mcopy -o -i "$SPEC" "$LFW_SRC/rtl_nic/rtl8168h-2.fw" ::/Android/firmware/rtl_nic/rtl8168h-2.fw
+  echo "    ethernet: rtl8168h-2.fw"
+else
+  echo "    WARNING: $LFW_SRC/rtl_nic/rtl8168h-2.fw missing - r8169 runs without its PHY parameters"
+fi
+
 REG_SRC=${LINEAGE_OUT:-${LINEAGE_TREE:-$HOME/q6a/lineage}/out/target/product/Generic_arm64}/vendor/firmware
 for f in regulatory.db regulatory.db.p7s; do
   if [ -f "$REG_SRC/$f" ]; then

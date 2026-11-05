@@ -47,8 +47,10 @@ PRODUCT_USE_DYNAMIC_PARTITIONS := true
 PRODUCT_USE_DYNAMIC_PARTITION_SIZE := true
 
 # Firmware
+# linux_firmware_r8168: PHY parameters for the RTL8111H Ethernet controller (rtl8168h-2.fw).
 PRODUCT_PACKAGES += \
-    dragon_q6a_firmware_qcom_symlink
+    dragon_q6a_firmware_qcom_symlink \
+    linux_firmware_r8168
 
 # First stage init
 # DRAGON_Q6A_DUAL_BOOT=true builds for a disk shared with a generic_init installation (testing).
@@ -98,8 +100,11 @@ PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false
 TARGET_MEDIA_C2_HAL := v4l2_codec2
 
 # Permissions
+# A board used with touch panels, not a PC: pc_core_hardware.xml declares android.hardware.type.pc
+# and no touchscreen, and Google Play hides games such as Genshin Impact from that profile.
 PRODUCT_COPY_FILES += \
-    frameworks/native/data/etc/pc_core_hardware.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/pc_core_hardware.xml
+    frameworks/native/data/etc/tablet_core_hardware.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/tablet_core_hardware.xml \
+    frameworks/native/data/etc/android.hardware.touchscreen.multitouch.jazzhand.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.touchscreen.multitouch.jazzhand.xml
 
 # Scoped Storage
 $(call inherit-product, $(SRC_TARGET_DIR)/product/emulated_storage.mk)

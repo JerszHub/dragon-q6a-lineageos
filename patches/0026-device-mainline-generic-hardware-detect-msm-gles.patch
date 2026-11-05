@@ -1,0 +1,56 @@
+diff --git a/services/hardware_detect/hardware_detect.cpp b/services/hardware_detect/hardware_detect.cpp
+index 4fc57a6..f03acf6 100644
+--- a/services/hardware_detect/hardware_detect.cpp
++++ b/services/hardware_detect/hardware_detect.cpp
+@@ -515,6 +515,42 @@ err_fd_device_new:
+     return;
+ }
+ 
++// Freedreno exposes OpenGL ES 3.2 on Adreno 6xx and newer, 3.1 on Adreno 5xx and 3.0 on
++// Adreno 3xx and 4xx. The GPU is asked through the render node: on SoCs where the display
++// controller is its own DRM device, the card node has no 3D pipe.
++void DrmMsmRender(int render_fd) {
++    struct fd_device* dev = fd_device_new(render_fd);
++    if (!dev) {
++        LOG(ERROR) << __FUNCTION__ << ": fd_device_new() failed";
++        return;
++    }
++
++    struct fd_pipe* pipe = fd_pipe_new(dev, FD_PIPE_3D);
++    if (!pipe) {
++        LOG(ERROR) << __FUNCTION__ << ": fd_pipe_new() failed";
++        fd_device_del(dev);
++        return;
++    }
++
++    // The core generation is in bits 24-31 of the chip ID (0x06 for Adreno 6xx, 0x4x for 7xx).
++    uint64_t chip_id = 0;
++    fd_pipe_get_param(pipe, FD_CHIP_ID, &chip_id);
++    const unsigned int generation = (chip_id >> 24) & 0xff;
++    LOG(INFO) << __FUNCTION__ << ": chip_id = " << std::to_string(chip_id)
++              << " generation = " << std::to_string(generation);
++
++    if (generation >= 6) {
++        gGlesVersion = kGlesVersion32;
++    } else if (generation == 5) {
++        gGlesVersion = kGlesVersion31;
++    } else if (generation >= 3) {
++        gGlesVersion = kGlesVersion30;
++    }
++
++    fd_pipe_del(pipe);
++    fd_device_del(dev);
++}
++
+ void DrmNouveauRender(void) {
+     gGlesVersion = kGlesVersion31;
+     gGrallocApex = GrallocApex::GbmMesa;
+@@ -953,7 +989,7 @@ void DetectGraphics(void) {
+     } else if (drm_render.value().name == "i915") {
+         DrmI915(drm_render.value().fd, true);
+     } else if (drm_render.value().name == "msm") {
+-        // nothing
++        DrmMsmRender(drm_render.value().fd);
+     } else if (drm_render.value().name == "nouveau") {
+         DrmNouveauRender();
+     } else if (drm_render.value().name == "radeon") {

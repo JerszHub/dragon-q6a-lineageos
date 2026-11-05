@@ -24,3 +24,4 @@
 0023-v4l2_codec2-decoder-dropped-frames.patch         external/v4l2_codec2
 0024-qcom-common-persist-overlay-optional.patch      device/mainline/qcom-common
 0025-qcom-common-soc-sc7280.patch                    device/mainline/qcom-common
+0026-device-mainline-generic-hardware-detect-msm-gles.patch  device/mainline/generic
