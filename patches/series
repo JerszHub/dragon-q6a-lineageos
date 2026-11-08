@@ -25,3 +25,5 @@
 0024-qcom-common-persist-overlay-optional.patch      device/mainline/qcom-common
 0025-qcom-common-soc-sc7280.patch                    device/mainline/qcom-common
 0026-device-mainline-generic-hardware-detect-msm-gles.patch  device/mainline/generic
+0027-v4l2_codec2-decoder-stop-on-error-buffer-loop.patch  external/v4l2_codec2
+0028-kernel-iris-clear-pending-drc-on-input-streamoff.patch  kernel/mainline/android-mainline

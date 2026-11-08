@@ -1,0 +1,25 @@
+diff --git a/drivers/media/platform/qcom/iris/iris_common.c b/drivers/media/platform/qcom/iris/iris_common.c
+index 25836561bcf3..63a322157976 100644
+--- a/drivers/media/platform/qcom/iris/iris_common.c
++++ b/drivers/media/platform/qcom/iris/iris_common.c
+@@ -223,6 +223,20 @@ int iris_session_streamoff(struct iris_inst *inst, u32 plane)
+ 	if (ret)
+ 		goto error;
+ 
++	/*
++	 * Stopping the decoder's input abandons a source change the client has not completed.
++	 * The firmware reports the settings again once the input restarts; with the sub-state
++	 * left behind, iris_inst_sub_state_change_drc() rejects that report and the session
++	 * goes to its error state for good. Seeking in VP9 streams triggers this: the firmware
++	 * reports the settings again after the seek while the earlier report is still pending.
++	 */
++	if (inst->domain == DECODER && V4L2_TYPE_IS_OUTPUT(plane)) {
++		ret = iris_inst_change_sub_state(inst, IRIS_INST_SUB_DRC | IRIS_INST_SUB_DRC_LAST,
++						 0);
++		if (ret)
++			goto error;
++	}
++
+ 	iris_flush_deferred_buffers(inst, buffer_type);
+ 
+ 	return 0;

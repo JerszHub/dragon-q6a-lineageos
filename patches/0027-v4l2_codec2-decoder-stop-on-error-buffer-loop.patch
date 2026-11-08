@@ -1,0 +1,64 @@
+diff --git a/v4l2/include/v4l2_codec2/v4l2/V4L2Decoder.h b/v4l2/include/v4l2_codec2/v4l2/V4L2Decoder.h
+--- a/v4l2/include/v4l2_codec2/v4l2/V4L2Decoder.h
++++ b/v4l2/include/v4l2_codec2/v4l2/V4L2Decoder.h
+@@ -143,6 +143,10 @@
+     ErrorCB mErrorCb;
+     // Number of frames dropped since the last frame sent to the client, for logging.
+     size_t mNumDroppedFrames = 0;
++    // Output buffers the device has returned empty and flagged as errors in a row, without a
++    // decoded frame in between. A driver whose session has failed bounces every buffer queued
++    // to it this way at once, and recycling them would never end.
++    size_t mConsecutiveErrorBuffers = 0;
+ 
+     ui::Size mCodedSize;
+     Rect mVisibleRect;
+diff --git a/v4l2/V4L2Decoder.cpp b/v4l2/V4L2Decoder.cpp
+--- a/v4l2/V4L2Decoder.cpp
++++ b/v4l2/V4L2Decoder.cpp
+@@ -28,6 +28,15 @@
+ #include <v4l2_codec2/plugin_store/DmabufHelpers.h>
+ 
+ namespace android {
++namespace {
++
++// More empty output buffers flagged as errors in a row than any stream, however damaged, gives
++// between two decoded frames: about 30 seconds at 30 fps. A session the driver has put in its
++// error state returns thousands of them a second, so the limit is reached within a moment.
++constexpr size_t kMaxConsecutiveErrorBuffers = 1000;
++
++}  // namespace
++
+ 
+ namespace {
+ 
+@@ -582,6 +591,8 @@
+         std::move(mDrainCb).Run(VideoDecoder::DecodeStatus::kAborted);
+     }
+ 
++    mConsecutiveErrorBuffers = 0;
++
+     // Streamoff both V4L2 queues to drop input and output buffers.
+     const bool isOutputStreaming = mOutputQueue->isStreaming();
+     mDevice->stopPolling();
+@@ -699,6 +710,7 @@
+         mFrameAtDevice.erase(it);
+ 
+         if (bytesUsed > 0) {
++            mConsecutiveErrorBuffers = 0;
+             if (mNumDroppedFrames > 0) {
+                 ALOGW("Dropped %zu frames that failed to decode", mNumDroppedFrames);
+                 mNumDroppedFrames = 0;
+@@ -711,6 +723,13 @@
+             // A frame that failed to decode comes back empty and, with some drivers, without the
+             // timestamp of its bitstream buffer. Let the client find the work it belonged to.
+             if (dequeuedBuffer->isError() && !isLast) {
++                if (++mConsecutiveErrorBuffers > kMaxConsecutiveErrorBuffers) {
++                    ALOGE("The device returned %zu empty output buffers with errors in a row "
++                          "without decoding a frame, giving up",
++                          mConsecutiveErrorBuffers);
++                    onError();
++                    return;
++                }
+                 mNumDroppedFrames++;
+                 mDropFrameCb.Run();
+             }
