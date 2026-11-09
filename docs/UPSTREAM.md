@@ -1,6 +1,6 @@
 # Upstream checklist
 
-Last updated: 2026-10-23.
+Last updated: 2026-11-09.
 
 Two different bars apply, and most of this list only matters for the second one:
 
@@ -45,11 +45,11 @@ around "what the stock OS supported".
 |---|---|---|
 | Audio, 3.5 mm jack | MUST (stock supports it) | Worked on 2026-09-26; recheck |
 | Audio over HDMI | MUST if stock supports it | Declared in the DT, never verified |
-| Bluetooth audio (A2DP) | MUST | Untested |
+| Bluetooth audio (A2DP) | MUST | Works: a speaker connected at boot and played a video's sound over SBC (2026-11-05); the source also offers AAC, aptX, aptX HD, LDAC and LHDC |
 | Wi-Fi hotspot | MUST (the driver offers AP and P2P-GO) | Works on 2.4 GHz: a phone browses through it, with the cellular modem or Ethernet as upstream (2026-10-24). 5 GHz is refused, see the Wi-Fi HAL item in section 1 |
 | Wi-Fi and Bluetooth MAC addresses | MUST match stock | Read from the chip (`addr_assign_type=0`), so almost certainly identical to RadxaOS; not compared directly |
 | microSD slot | MUST | Both SDHCI hosts probe; no card was inserted. `/data` lived on a microSD card during bring-up, so the slot works; recheck with a card |
-| Hardware video codecs | MUST if the stock OS supports them | Work: H.264, HEVC and VP9 decoding and H.264 encoding through iris and the V4L2 Codec2 HAL. The HAL raises the output delay at runtime from the driver's minimum buffer count (0018, tested 2026-10-24). Frames iris fails to decode no longer leave their work items hanging (0023, tested 2026-10-25). Upstream work left: send 0018 and 0023 upstream; in the kernel, iris could keep the timestamp of a buffer flagged `V4L2_BUF_FLAG_ERROR` as venus does for corrupt data, so userspace knows which frame was lost |
+| Hardware video codecs | MUST if the stock OS supports them | Work: H.264, HEVC and VP9 decoding and H.264 encoding through iris and the V4L2 Codec2 HAL. The HAL raises the output delay at runtime from the driver's minimum buffer count (0018, tested 2026-10-24). Frames iris fails to decode no longer leave their work items hanging (0023, tested 2026-10-25). Upstream work left: send 0018 and 0023 upstream; in the kernel, iris could keep the timestamp of a buffer flagged `V4L2_BUF_FLAG_ERROR` as venus does for corrupt data, so userspace knows which frame was lost. Seeking in VP9 used to put the iris session in a permanent error state and the HAL looped on it until the system ran out of memory; fixed by 0027 (HAL) and 0028 (iris), tested 2026-11-09 |
 | Camera | MUST if the stock OS supports it | CCI is disabled in the DT and no sensor is attached. Needs agreement with the Directors, given the non-Android stock OS |
 | MIPI-DSI | SHOULD | Not started |
 | USB/Bluetooth tethering, GSI boot | SHOULD | Untested |
@@ -80,8 +80,8 @@ around "what the stock OS supported".
 | Mesa (freedreno a6xx) | Reverse index from seqno to texture states, so deleting a sampler view no longer walks the whole texture cache; about 16% of a game's CPU time |
 | Mesa (driconf) | Per-application GL renderer override for Genshin Impact instead of the vendor property |
 | LineageOS Gerrit | Missing `LineageSettingsProvider` dependency; `generic_init` canonical mount point (0007); `generic_init` vfat `umask`, without which `vendor.prop` in the android dir is never loaded (0019); the `device/mainline/generic` patches in `patches/`. Dropped after checking upstream: 0002 (`lineage-sdk` builds unpatched on the current tree, verified 2026-10-11) and 0003 (`libzstd` visibility; upstream guards the dependency in `generic_init` instead, change 505913) |
-| AOSP `external/v4l2_codec2` | Decoder input dmabuf cache sync (0017); encoder plane length (0011), decoder 0x0 input size (0013), key frame fallback (0014), GOP size 0 means key frames only on iris (0021) |
-| Linux (iris) | The gen2 encoder never subscribes to the picture type, so no encoded buffer carries `V4L2_BUF_FLAG_KEYFRAME` (0020). To report: `rmmod qcom_iris` deadlocks, as `iris_core_deinit()` holds `core->lock` across `disable_irq()` while the threaded handler waits for that lock |
+| AOSP `external/v4l2_codec2` | Decoder input dmabuf cache sync (0017); give up instead of looping when a driver bounces every output buffer with an error (0027); encoder plane length (0011), decoder 0x0 input size (0013), key frame fallback (0014), GOP size 0 means key frames only on iris (0021) |
+| Linux (iris) | The gen2 encoder never subscribes to the picture type, so no encoded buffer carries `V4L2_BUF_FLAG_KEYFRAME` (0020). Stopping the decoder's input leaves a pending source change behind, and the firmware's next settings report then fails the session (0028). To report: `rmmod qcom_iris` deadlocks, as `iris_core_deinit()` holds `core->lock` across `disable_irq()` while the threaded handler waits for that lock |
 | Linux | Dragon Q6A device tree; `orientation-switch` on a QMP PHY with no USB-C connector; the `genpd` ordering; the SMMU SError on a failed DP link |
 
 ### Submission format
